@@ -18,6 +18,21 @@
 
 // 这个QA扩展到到多agent+tool的情况
 
+/* 
+//  区分2种情况
+// 1、单个文献的问答：对单个文档进行语义库建模+搜索，然后接LLM或者agent
+// 2、多个文献的问答：对多个文档进行语义库建模+搜索，然后接LLM或者agent
+// 利用多agent+tool的模式，智能地设计规划，操作tool。
+
+// 常用的tool:
+1、外部搜索引擎，包括通用搜索引擎、学术搜索引擎等
+2、本地搜索引擎，包括Zotero内部搜索、自建的语义搜索库
+3、是否需要让LLM自己编程来搜索，那就要引入JS执行工具
+4、一些现有的zotero-note存储函数，方便LLM来存储结果
+
+TODO: 1) 搭建段落级别的term以及语义搜索系统 2）考虑单pdf与多pdf的问答分支 3) 搭建多agent+tool的模式 4) 打通外部搜索引擎
+
+*/
 if (item!=null) return;
 
 /************* Configurations Start *************/
@@ -78,6 +93,54 @@ class ZoteroLLMQA{
         this.itemProgress.setText(text);
     }
 
+    async getContext(){
+        let selected_items = []; // 选中的文献
+        let selected_text=""; // 选中的文本
+        let context_text=""; // 上下文文本
+        let window_type = Zotero_Tabs.selectedID=="zotero-pane" ? "main" : "reader";
+        if (window_type=="main"){
+            selected_items = Zotero.getActiveZoteroPane().getSelectedItems();
+        }else{
+            const reader = Zotero.Reader.getByTabID(Zotero_Tabs.selectedID); // 获取当前阅读器实例
+            // 主window id 为zotero-pane, 其他阅读器为随机id
+            
+            const itemID = reader.itemID;
+            // const item = Zotero.Items.get(itemID);
+            if (item) {
+                selected_items = [item];
+            }
+
+            const iframeWindow = reader._iframeWindow;
+
+            const PDFViewerApplication = reader._iframeWindow.wrappedJSObject.PDFViewerApplication; // 获取 PDFViewerApplication 对象
+            const currentPageNumber = PDFViewerApplication.pdfViewer.currentPageNumber;
+            console.log('当前页码:', currentPageNumber);
+
+            const ztoolkit = Zotero.ZoteroGPT.data.ztoolkit;
+            let getSelection = () => {
+                return ztoolkit.Reader.getSelectedText(Zotero.Reader.getByTabID(Zotero_Tabs.selectedID));
+            };
+            selected_text = getSelection();
+
+
+            await PDFViewerApplication.pdfLoadingTask.promise; // 等待 PDF 加载完成
+            await PDFViewerApplication.pdfViewer.pagesPromise; // 等待页面加载完成
+            let pages = PDFViewerApplication.pdfViewer._pages; // 获取所有页面
+            let pdfPage = pages[currentPageNumber].pdfPage; // 获取第一页
+            let items = (await pdfPage.getTextContent()).items; // 获取第一页的文本内容
+
+            // 提取文本内容
+            textContent = items.map(item => item.str).join(''); // 将每个文本块的内容拼接成完整的文本
+        }
+        // selected_items = selected_items.map(item => this.getItemString(item));
+        return {
+            "selected_items": selected_items,
+            "selected_text": selected_text,
+            "context_text": context_text,
+            "window_type": window_type
+        };
+    }
+
     // 主处理函数
     async getQuestionAnswer() {
         try {
@@ -92,14 +155,70 @@ class ZoteroLLMQA{
                 throw new Error("未输入问题");
             }
 
-            this.setProcess(10, "搜索相关论文...");
-            // 搜索文献
-            let  items = await searchQuery(query);
-            items = items.slice(0, 20);
+            contextInfo = getContext();
+            
+            if (contextInfo.window_type=="main" && contextInfo.selected_items.length==0){
+                // 搜索文献 是不是main就得搜索呢？
+                // TODO: 使用python-arxiv，python-es等工具  看起来直接用JS也可以把
+                // 暂时还是用python吧，JS涉及到引入其他库，而我这个是zotero的一个脚本不行。如果插件化了应该可以。
+                
+                this.setProcess(10, "搜索相关论文...");
+                let items = await searchQuery(query);
+                contextInfo["related_items"] = items.slice(0, 20);
+            }
 
             this.setProcess(30, "生成prompt...");
             // 根据问题类型与具体问题 决定prompt ，合并LLM输入
-            const llmPrompt = await this.getPrompt(query, items);
+            const llmPrompt = await this.getPrompt(query, contextInfo);
+
+            this.setProcess(40, "询问LLM...");
+            // 生成结果
+            const llmResult = await this.generateLLMResult(llmPrompt);
+            
+            this.setProcess(80, "保存结果...");
+            // 保存结果
+            await this.saveResult(query, items, llmResult);
+
+            this.itemProgress.setProgress(100);
+            this.itemProgress.setText("问答完成！");
+            this.progressWindow.startCloseTimer(3000);
+
+        } catch (error) {
+            this.itemProgress.setError();
+            this.itemProgress.setText(`错误: ${error.message}`);
+            this.progressWindow.startCloseTimer(5000);
+            throw error;
+        }
+    }
+
+    // 主处理函数
+    async getQuestionAnswerByAgent() {
+        try {
+            // 初始化进度窗口
+            this.initProgressWindow();
+            this.count+=1
+            this.setProcess(0, `获取问题...${this.count}`);
+
+            // 获取用户输入
+            let query = await getQuestion();
+            if (!query) {
+                throw new Error("未输入问题");
+            }
+
+            contextInfo = getContext();
+            
+            // 交互python后端 agent-qa,带上query和上下文信息
+            if (contextInfo.window_type=="main" && contextInfo.selected_items.length==0){
+                // 搜索文献 是不是main就得搜索呢？
+                this.setProcess(10, "搜索相关论文...");
+                let items = await searchQuery(query);
+                contextInfo["related_items"] = items.slice(0, 20);
+
+            }
+
+            this.setProcess(30, "生成prompt...");
+            // 根据问题类型与具体问题 决定prompt ，合并LLM输入
+            const llmPrompt = await this.getPrompt(query, contextInfo);
 
             this.setProcess(40, "询问LLM...");
             // 生成结果
@@ -132,42 +251,51 @@ class ZoteroLLMQA{
         this.progressWindow.show();
     }
 
-
+    getItemString(item){
+        if (!item || !item.isRegularItem() || !item.isTopLevelItem()) {
+            return "";
+        }
+        let title = item.getField('title');
+        let abstract = item.getField('abstractNote');
+        let year = item.getField('year');
+        let name = item.getCreators()[0]?.lastName || '';
+        let aiSummary = "";
+        try{
+            let notes = item.getNotes();
+            for (const noteId of notes) {
+                const note = Zotero.Items.get(noteId);
+                const noteContent = note.getNote();
+                if (note.getNote().includes("AI Generated Summary")) {
+                    aiSummary = noteContent;
+                }
+            }
+        }catch(e){
+            console.error(e);
+        }
+        return `
+        <title>${title}</title>\n
+        [name]:${name}\n
+        <abstarct>\n
+        ${abstract}\n
+        </abstarct>\n
+        <year>${year}</year>\n
+        <ai_note_abstract>\n
+        ${aiSummary}
+        </ai_note_abstract>`;
+    }
 
     // 生成prompt
-    async getPrompt(query, items) {
-        function getItemString(item){
-            if (!item || !item.isRegularItem() || !item.isTopLevelItem()) {
-                return "";
-            }
-            let title = item.getField('title');
-            let abstract = item.getField('abstractNote');
-            let year = item.getField('year');
-            let name = item.getCreators()[0]?.lastName || '';
-            let aiSummary = "";
-            try{
-                let notes = item.getNotes();
-                for (const noteId of notes) {
-                    const note = Zotero.Items.get(noteId);
-                    const noteContent = note.getNote();
-                    if (note.getNote().includes("AI Generated Summary")) {
-                        aiSummary = noteContent;
-                    }
-                }
-            }catch(e){
-                console.error(e);
-            }
-            return `
-            [title]:${title}\n
-            [name]:${name}\n
-            [abstarct]:${abstract}\n
-            [year]:${year}\n
-            [ai_note_abstract]:${aiSummary}`;
+    async getPrompt(query, contextInfo) {
+        let contextInfoStr = "";
+        contextInfo["selected_items"] = contextInfo["selected_items"].map(item => getItemString(item)).join("\n\n");
+        contextInfo["related_items"] = contextInfo["related_items"].map(item => getItemString(item)).join("\n\n");
+        for (const key in contextInfo) {
+            contextInfoStr += `[${key}]:\n${contextInfo[key]}\n\n`;
         }
-        let papersSummary = items.map(item => getItemString(item)).join("\n\n");
+
         return formatString(qa_prompt, {
             "question": query, 
-            "papers_summary": papersSummary
+            "context_info": contextInfoStr
         });
     }
 

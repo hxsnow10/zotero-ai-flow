@@ -120,3 +120,96 @@ zotero_export_note.js
 注意在代码中指定导出note的key来匹配。
 
 ![alt text](docs/image3.png)
+
+## Zotero QA System
+
+基于AutoGen的Zotero问答系统，支持多智能体协作。
+
+## 功能特点
+
+- 多智能体规划与协作
+- 集成多种搜索工具（Zotero, Elasticsearch, arXiv）
+- 智能决策使用哪些搜索工具
+- 用户交互界面
+
+## 快速开始
+
+### 环境设置
+
+1. 确保已安装必要的依赖库：
+
+```bash
+pip install autogen-agentchat pyzotero arxiv elasticsearch
+```
+
+2. 设置API密钥环境变量：
+
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+export ZOTERO_API_KEY="your_zotero_api_key"
+export ZOTERO_LIBRARY_ID="your_zotero_library_id"
+```
+
+### 直接运行
+
+无需安装，可以直接从项目目录运行：
+
+```bash
+# 运行主程序
+python run_zotero_qa.py --query "查找机器学习在医疗诊断中的应用"
+
+# 运行示例
+python run_zotero_qa.py --examples
+
+# 指定配置文件
+python run_zotero_qa.py --config your_config.json
+```
+
+## 配置文件
+
+修改 `zotero_qa/config.json` 文件来自定义设置：
+
+```json
+{
+  "llm_config_list": [
+    {
+      "model": "gpt-4-turbo",
+      "api_key": "your_openai_api_key"
+    }
+  ],
+  "es_host": "http://localhost:9200",
+  "es_index": "zotero_papers",
+  "zotero_api_key": "your_zotero_api_key",
+  "zotero_library_id": "your_zotero_library_id",
+  "zotero_library_type": "user",
+  "work_dir": "./workspace"
+}
+```
+
+## 使用示例
+
+### 基本问答
+
+```bash
+python run_zotero_qa.py --query "总结最近五年内关于大型语言模型的研究进展"
+```
+
+### 搜索指定主题
+
+```bash
+python run_zotero_qa.py --query "找出我的Zotero库中关于强化学习的论文，并分析它们的方法差异"
+```
+
+### 比较分析
+
+```bash
+python run_zotero_qa.py --query "比较深度学习和传统机器学习方法在图像识别中的优势和局限性"
+```
+
+## 贡献
+
+欢迎提交问题报告和改进建议！
+
+## 许可
+
+MIT
