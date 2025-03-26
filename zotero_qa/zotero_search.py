@@ -12,6 +12,12 @@ Example:
 import sys
 import argparse
 import os
+import logging
+from typing import List, Dict, Any
+
+# Configure logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class ZoteroSearchTool:
     """Zotero搜索工具，用于从Zotero获取论文信息"""
@@ -21,7 +27,7 @@ class ZoteroSearchTool:
         self.library_id = zotero_library_id
         self.library_type = zotero_library_type
     
-    def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search(self, query: str, size: int = 10) -> List[Dict[str, Any]]:
         """
         搜索Zotero库中的论文
         
@@ -40,7 +46,7 @@ class ZoteroSearchTool:
                 return []
             
             zot = zotero.Zotero(self.library_id, self.library_type, self.api_key)
-            results = zot.items(q=query, limit=limit)
+            results = zot.items(q=query, limit=size)
             
             # 转换为更易于使用的格式
             formatted_results = []

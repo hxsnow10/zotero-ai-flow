@@ -419,7 +419,7 @@ async def question_answer(
                 raise HTTPException(status_code=500, detail="QA系统初始化失败")
 
         # 调用QA系统获取回答
-        answer = qa_system.get_answer(message=query, context=context)
+        answer = await qa_system.get_answer(message=query, context=context)
 
         return {"status": "success", "answer": answer}
     except Exception as e:

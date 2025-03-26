@@ -6,18 +6,13 @@ from pyzotero import zotero
 
 # 更新日志格式，包含文件名、函数名和行号
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 # 处理相对导入
-try:
-    from .search_es import ElasticsearchClient
-except ImportError:
-    # 当直接运行此脚本时，使用绝对导入
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    from zotero_qa.search_es import ElasticsearchClient
+from search_es import ElasticsearchClient
 
 """
 搜索工具使用示例:
@@ -30,7 +25,7 @@ zotero_tool = ZoteroSearchTool(
     zotero_api_key="your_api_key",
     zotero_library_id="your_library_id"
 )
-papers = zotero_tool.search("machine learning", limit=5)
+papers = zotero_tool.search("machine learning", size=5)
 for paper in papers:
     print(f"标题: {paper['title']}")
     print(f"作者: {', '.join([author['lastName'] for author in paper['authors']])}")
@@ -65,31 +60,24 @@ for paper in papers:
 class ZoteroSearchTool:
     """Zotero搜索工具，用于从Zotero获取论文信息"""
     
-    def __init__(self, zotero_api_key=None, zotero_library_id=None, zotero_library_type="user"):
-        self.api_key = zotero_api_key
-        self.library_id = zotero_library_id
-        self.library_type = zotero_library_type
+    def __init__(self):
+        self.zot = zotero.Zotero(library_id='000000', library_type = 'user', local=True) 
+
     
-    def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search(self, query: str, size: int = 10) -> List[Dict[str, Any]]:
         """
         搜索Zotero库中的论文
         
         Args:
             query: 搜索关键词
-            limit: 返回结果数量限制
+            size: 返回结果数量限制
         
         Returns:
             匹配的论文列表
         """
         try:
-            from pyzotero import zotero
-            
-            if not self.api_key or not self.library_id:
-                logger.error("Zotero API key or library ID not provided")
-                return []
-            
-            zot = zotero.Zotero(self.library_id, self.library_type, self.api_key)
-            results = zot.items(q=query, limit=limit)
+
+            results = self.zot.items(q=query, limit=size)
             
             # 转换为更易于使用的格式
             formatted_results = []
@@ -123,14 +111,8 @@ class ZoteroSearchTool:
             论文详细信息
         """
         try:
-            from pyzotero import zotero
-            
-            if not self.api_key or not self.library_id:
-                logger.error("Zotero API key or library ID not provided")
-                return {}
-            
-            zot = zotero.Zotero(self.library_id, self.library_type, self.api_key)
-            item = zot.item(key)
+
+            item = self.zot.item(key)
             
             if not item:
                 return {}
@@ -162,7 +144,7 @@ class ElasticsearchSearchTool:
         )
     
     def search(self, query: str, size: int = 5, vector: Optional[List[float]] = None, 
-              search_chunks: bool = False, group_by_parent: bool = True) -> List[Dict[str, Any]]:
+              search_docs: bool = True, search_chunks: bool = True, group_by_parent: bool = False) -> List[Dict[str, Any]]:
         """
         搜索本地ES索引中的论文
         
@@ -178,17 +160,23 @@ class ElasticsearchSearchTool:
         """
         try:
             # 准备查询过滤器
-            filters = None
-            if not search_chunks:
+            filters = {}
+            if search_docs and not search_chunks:
                 # 只搜索主文档
                 filters = {"is_chunk": False}
+            elif not search_docs and search_chunks:
+                # 只搜索切片
+                filters = {"is_chunk": True}
+            elif not search_docs and not search_chunks:
+                # 不搜索任何内容
+                return []
             
             # 执行搜索
             if vector:
                 results = self.es_client.search(query=query, vector=vector, size=size, filters=filters)
             else:
                 results = self.es_client.search(query=query, size=size, filters=filters)
-            
+
             formatted_results = []
             
             # 用于分组的字典
@@ -205,10 +193,12 @@ class ElasticsearchSearchTool:
                     'id': hit['_id'],
                     'score': hit['_score'],
                     'source': source,
-                    'is_chunk': source.get('is_chunk', False)
+                    'is_chunk': source.get('is_chunk', False),
+                    'parent_id': source.get('parent_id', ''),
+                    'chunks': []
                 }
                 
-                if group_by_parent and source.get('is_chunk', False) and 'parent_id' in source:
+                if group_by_parent and 'parent_id' in source:
                     # 如果是切片且需要分组，则按父文档分组
                     parent_id = source['parent_id']
                     if parent_id not in parent_docs:
@@ -230,7 +220,7 @@ class ElasticsearchSearchTool:
                     formatted_results.append(formatted_result)
             
             # 如果需要分组，则将分组结果添加到最终结果
-            if group_by_parent and parent_docs:
+            if group_by_parent:
                 # 按得分排序
                 parent_items = sorted(
                     parent_docs.items(), 
@@ -239,77 +229,17 @@ class ElasticsearchSearchTool:
                 )
                 
                 for parent_id, parent_data in parent_items:
-                    formatted_results.append({
-                        'id': parent_id,
-                        'score': parent_data['max_score'],
-                        'title': parent_data['title'],
-                        'chunks': parent_data['chunks'],
-                        'is_parent_with_chunks': True
-                    })
+                    formatted_results.append(parent_data)
             
             return formatted_results
         except Exception as e:
             logger.error(f"Error searching Elasticsearch: {str(e)}")
             return []
-    
-    def search_chunks(self, query: str, size: int = 10, vector: Optional[List[float]] = None, 
-                     parent_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        专门搜索文档切片
-        
-        Args:
-            query: 搜索关键词
-            size: 返回结果数量
-            vector: 可选的向量搜索
-            parent_id: 可选的父文档ID
-            
-        Returns:
-            切片搜索结果列表
-        """
-        try:
-            # 准备查询过滤器
-            filters = {"is_chunk": True}
-            
-            # 如果指定了父文档ID，则添加到过滤器
-            if parent_id:
-                filters["parent_id"] = parent_id
-            
-            # 执行搜索
-            if vector:
-                results = self.es_client.search(query=query, vector=vector, size=size, filters=filters)
-            else:
-                results = self.es_client.search(query=query, size=size, filters=filters)
-            
-            formatted_results = []
-            for hit in results['hits']['hits']:
-                source = hit['_source']
-                # 移除向量以减少输出大小
-                if 'vector' in source:
-                    del source['vector']
-                
-                formatted_result = {
-                    'id': hit['_id'],
-                    'score': hit['_score'],
-                    'parent_id': source.get('parent_id', ''),
-                    'chunk_id': source.get('chunk_id', 0),
-                    'chunk_type': source.get('chunk_type', ''),
-                    'chunk_title': source.get('chunk_title', ''),
-                    'title': source.get('title', ''),
-                    'content': source.get('content', ''),
-                    'start_char': source.get('start_char', 0),
-                    'end_char': source.get('end_char', 0)
-                }
-                formatted_results.append(formatted_result)
-            
-            return formatted_results
-        except Exception as e:
-            logger.error(f"Error searching chunks: {str(e)}")
-            return []
 
 class ArxivSearchTool:
     """封装arXiv搜索功能的工具类"""
     
-    def search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query: str, size: int = 5) -> List[Dict[str, Any]]:
         """
         搜索arXiv的论文
         
@@ -326,7 +256,7 @@ class ArxivSearchTool:
             # 使用arxiv API搜索
             search = arxiv.Search(
                 query=query,
-                max_results=max_results,
+                max_results=size,
                 sort_by=arxiv.SortCriterion.Relevance
             )
             
@@ -348,24 +278,35 @@ class ArxivSearchTool:
             logger.error(f"Error searching arXiv: {str(e)}")
             return []
         
-
-zot = zotero.Zotero(library_id='000000', library_type = 'user', local=True)
-def search_zotero(query: str, limit: int = 10) -> List[Dict[str, Any]]:
+# TODO： 这里的输出格式不适合LLM，需要规整下
+def good_read(results, prefix = ""):
+    "返回一个适合阅读的字符串"
+    res = prefix+":\n"
+    for i, item in enumerate(results):
+        res += f"\n--- 第 {i+1}篇结果 BEGIN---:\n"
+        for key in item:
+            res += f"{key}: {item[key]}\n"
+        res += f"\n--- 第 {i+1}篇结果 END---:\n"
+    print(res)
+    return res
+        
+zot_clinet = ZoteroSearchTool()
+def search_zotero(query: str, size: int = 10) -> List[Dict[str, Any]]:
     """
     搜索Zotero库中的论文
     
     Args:
         query: 搜索关键词
-        limit: 返回结果数量限制
+        size: 返回结果数量限制
     
     Returns:
         匹配的论文列表
     """
-    # 使用zotero配置
+    return good_read(zot_clinet.search(query, size),"zotero 搜索结果")
     
  
-es_client = ElasticsearchClient("http://localhost:9200","zotero_papers")
-def search_elasticsearch(query: str, size: int = 5) -> List[Dict[str, Any]]:
+es_client = ElasticsearchSearchTool()
+def search_elasticsearch(query: str, size: int = 5,vector: Optional[List[float]] = None,) -> List[Dict[str, Any]]:
     """
     搜索本地ES索引中的论文
     
@@ -376,34 +317,21 @@ def search_elasticsearch(query: str, size: int = 5) -> List[Dict[str, Any]]:
     Returns:
         搜索结果列表
     """
-    return es_search.search(query, size)
+    return good_read(es_client.search(query, vector = vector, size = size), "elasticsearch 搜索结果")
 
 arxiv_search = ArxivSearchTool()
-def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+def search_arxiv(query: str, size: int = 5) -> List[Dict[str, Any]]:
     """
     搜索arXiv的论文
     
     Args:
         query: 搜索关键词
-        max_results: 最大返回结果数
+        size: 最大返回结果数
     
     Returns:
         匹配的论文列表
     """
-    return arxiv_search.search(query, max_results)
-
-
-def get_zotero_item(key: str) -> Dict[str, Any]:
-    """
-    根据论文键值获取详细信息
-    
-    Args:
-        key: Zotero项目键值
-    
-    Returns:
-        论文详细信息
-    """
-    return zot.get_item_by_key(key)
+    return good_read(arxiv_search.search(query, size), "arxiv 搜索结果")
 
 # 当脚本直接运行时的示例代码
 if __name__ == "__main__":
@@ -411,58 +339,82 @@ if __name__ == "__main__":
     print("搜索工具演示")
     print("=" * 50)
     
-    # 获取API密钥和库ID的环境变量
-    zotero_api_key = os.environ.get("ZOTERO_API_KEY")
-    zotero_library_id = os.environ.get("ZOTERO_LIBRARY_ID")
-    
-    if zotero_api_key and zotero_library_id:
-        print("\n=== Zotero搜索示例 ===")
-        zotero = ZoteroSearchTool(
-            zotero_api_key=zotero_api_key, 
-            zotero_library_id=zotero_library_id
-        )
-        try:
-            results = zotero.search("machine learning", limit=2)
-            print(f"找到 {len(results)} 个结果")
-            for i, item in enumerate(results):
-                print(f"\n结果 {i+1}:")
-                print(f"标题: {item['title']}")
-                print(f"作者: {', '.join([f'{a.get('firstName', '')} {a.get('lastName', '')}' for a in item['authors'] if 'lastName' in a])}")
-                print(f"日期: {item['date']}")
-                if item['abstract']:
-                    print(f"摘要: {item['abstract'][:100]}..." if len(item['abstract']) > 100 else item['abstract'])
-        except Exception as e:
-            print(f"Zotero搜索出错: {str(e)}")
-    else:
-        print("Zotero API密钥或库ID未设置，跳过Zotero搜索示例")
+
+    print("\n=== Zotero搜索示例 ===")
+    try:
+        # 使用search_zotero函数测试
+        results = search_zotero("machine learning", size=2)
+        print(f"找到 {len(results)} 个结果")
+        for i, item in enumerate(results):
+            print(f"\n结果 {i+1}:")
+            print(f"标题: {item['title']}")
+            print(f"作者: {', '.join([f'{a.get('firstName', '')} {a.get('lastName', '')}' for a in item['authors'] if 'lastName' in a])}")
+            print(f"日期: {item['date']}")
+            if item['abstract']:
+                print(f"摘要: {item['abstract'][:100]}..." if len(item['abstract']) > 100 else item['abstract'])
+    except Exception as e:
+        print(f"Zotero搜索出错: {str(e)}")
+
     
     print("\n=== Elasticsearch搜索示例 ===")
     try:
-        es = ElasticsearchSearchTool()
-        results = es.search("neural networks", size=2)
-        print(f"找到 {len(results)} 个结果")
-        for i, result in enumerate(results):
-            print(f"\n结果 {i+1}:")
-            print(f"ID: {result['id']}")
-            print(f"得分: {result['score']}")
-            print(f"标题: {result['source'].get('title', 'N/A')}")
+        # 使用search_elasticsearch函数测试
+        results = search_elasticsearch("natural", size=2)
+        if results:
+            # 检查返回的结果类型
+            if isinstance(results, dict) and 'hits' in results:
+                # 这是原始的Elasticsearch响应
+                hits = results['hits']['hits']
+                print(f"找到 {len(hits)} 个结果")
+                for i, hit in enumerate(hits):
+                    print(f"\n结果 {i+1}:")
+                    print(f"ID: {hit['_id']}")
+                    print(f"得分: {hit['_score']}")
+                    print(f"标题: {hit['_source'].get('title', 'N/A')}")
+            elif isinstance(results, list):
+                # 这是格式化后的结果列表
+                print(f"找到 {len(results)} 个结果")
+                for i, result in enumerate(results):
+                    print(f"\n结果 {i+1}:")
+                    if isinstance(result, dict):
+                        print(f"ID: {result.get('id', 'N/A')}")
+                        print(f"得分: {result.get('score', 'N/A')}")
+                        source = result.get('source', {})
+                        if isinstance(source, dict):
+                            print(f"标题: {source.get('title', 'N/A')}")
+                        else:
+                            print(f"标题: 无法解析")
+                    else:
+                        print(f"结果格式无效: {result}")
+            else:
+                # 未知格式
+                print(f"结果类型: {type(results)}")
+                # print(f"结果内容: {results}")
+        else:
+            print("没有找到结果")
     except Exception as e:
+        import traceback
+        traceback.print_exc()   
         print(f"Elasticsearch搜索出错: {str(e)}")
-    
+    quit()
     print("\n=== arXiv搜索示例 ===")
     try:
-        arxiv = ArxivSearchTool()
-        results = arxiv.search("reinforcement learning", max_results=2)
+        # 使用search_arxiv函数测试
+        results = search_arxiv("reinforcement learning", size=2)
         print(f"找到 {len(results)} 个结果")
         for i, paper in enumerate(results):
-            print(f"\n结果 {i+1}:")
-            print(f"标题: {paper['title']}")
-            print(f"作者: {', '.join(paper['authors'])}")
-            print(f"发布日期: {paper['published']}")
-            print(f"URL: {paper['url']}")
-            if paper['abstract']:
-                print(f"摘要: {paper['abstract'][:100]}..." if len(paper['abstract']) > 100 else paper['abstract'])
+            if isinstance(paper, dict):
+                print(f"\n结果 {i+1}:")
+                print(f"标题: {paper.get('title', 'N/A')}")
+                print(f"作者: {', '.join(paper.get('authors', []))}")
+                print(f"发布日期: {paper.get('published', 'N/A')}")
+                print(f"URL: {paper.get('url', 'N/A')}")
+                if paper.get('abstract'):
+                    abstract = paper['abstract']
+                    print(f"摘要: {abstract[:100]}..." if len(abstract) > 100 else abstract)
+            else:
+                print(f"\n结果 {i+1} 格式无效: {paper}")
     except Exception as e:
         print(f"arXiv搜索出错: {str(e)}")
-    
+
     print("\n" + "=" * 50)

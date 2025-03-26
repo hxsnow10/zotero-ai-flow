@@ -21,7 +21,7 @@ from typing import Dict, List, Any, Optional, Union
 
 # 更新日志格式，包含文件名、函数名和行号
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s'
 )
 logger = logging.getLogger(__name__)
