@@ -1,0 +1,28 @@
+name: Python Format Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  black-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 拉取仓库代码到 runner，后续步骤才能访问项目文件
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 安装指定版本 Python，提供格式检查运行环境
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 安装 Black，用于执行 Python 代码格式检查
+      - name: Install Black
+        run: pip install black
+
+      # 仅检查格式是否符合 Black 规范，不会改写文件
+      - name: Check Python formatting
+        run: black --check .

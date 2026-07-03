@@ -1,0 +1,28 @@
+name: JS Format Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  prettier-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 拉取仓库代码到 runner，后续步骤才能访问项目文件
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 安装指定版本 Node.js，提供 JS 工具运行环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 安装 Prettier，用于执行代码格式检查
+      - name: Install Prettier
+        run: npm install --global prettier
+
+      # 仅检查 .js 文件格式，不会修改代码
+      - name: Check JavaScript formatting
+        run: prettier --check "**/*.js"
