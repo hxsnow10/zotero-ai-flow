@@ -1,5 +1,5 @@
 name: GitHub Actions Demo
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+run-name: ${{ github.workflow }} | ${{ github.event.head_commit.message || github.event.pull_request.title || github.sha }}
 on: [push]
 jobs:
   Explore-GitHub-Actions:
