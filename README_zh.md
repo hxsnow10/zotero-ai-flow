@@ -1,122 +1,165 @@
-中文 | [英文](README_en.md)
+中文 | [English](README.md)
 
 # Zotero AI Workflow
 
-本库提供了一套基于 Zotero 的自动化工作流，包括摘要、问答、生成-更新-导出笔记。worlflow的组件都依赖[zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) 以JS脚本的形式实现。
+Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动化工具集。
+项目将 Zotero 插件、Python 服务和 LLM API 组合在一起，支持：
 
-## Zotero Workflow Summary
-以下是我们使用zotero的基本流程：
-- 入库条目
-    - [自动]增加#To-Read标签
-    - [手动]增加#To-More-Read等标签
-- 打开条目
-    - [自动]翻译摘要
-    - [自动]生成AI摘要，存储到note
-- 阅读条目
-    - [手动]阅读AI摘要
-    - [手动]添加标注
-    - [交互]交互AI进行pdf问答,存储到note
-- 关闭条目
-    - [自动]生成由标注生成的笔记
-    - [自动]删除#To-Read
-    - [手动]删除#To-More-Read
-- 启动zotero程序，打开主window
-    - [自动]更新笔记→本地markdown，与外部笔记软件（比如wolai）同步； 7天更新一次
-    - [交互]交互AI进行库层面问答,存储到note
+- AI 论文摘要
+- 库级与 PDF 级问答
+- 标注转结构化笔记
+- 笔记导出与外部同步
 
-## Quick Start
-1、下载好库后，启动parser_server: nohup python parse_server.py &
-2、依赖better-notes与actions-tags插件 按需配置好这些模板与脚本。
-3、cp config_example.json config.json，配置好服务器地址、模型API等信息。注意在代码中修改配置所在的路径、模板名称等。
-4、[optional] 配置好prompt，用于配置模型输入的prompt。
-然后在zotero触发这些脚本即可。
+## 工作流概览
 
-## 核心逻辑
-本库一共提供了以下脚本；功能都是独立的脚本，可以单独使用。
+一个常见流程如下：
 
-| 脚本文件                  | 功能描述                                     |
-|--------------------------|-------------------------------------------|
-| zotero_autoupdate_notes.js | 更新指定模板生成的note                      |
-| zotero_note_template.js  | 利用标注生成笔记的模板，支持对层次header的提取       |
-| zotero_pdf_summary.js    | LLM生成摘要                                    |
-| zotero_pdf_qa.js         | LLM问答                                 |
-| zotero_export_note.js    | note导出到文件里，方便同步到外部软件           |
+- 文献入库
+  - 自动：添加 To-Read 等标签
+  - 手动：补充项目标签
+- 打开文献
+  - 自动：生成 AI 摘要并写入笔记
+- 阅读文献
+  - 手动：添加 PDF 标注
+  - 交互：向 LLM 提问并将答案写入笔记
+- 关闭文献或周期维护
+  - 自动：根据标注生成或更新结构化笔记
+  - 自动：导出笔记用于外部同步
 
-## 配置
+## 环境与插件
 
-config.json 用于配置服务器地址、模型API等信息。
+必需组件：
+
+- Zotero
+- [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags)
+- [zotero-better-notes](https://github.com/windingwind/zotero-better-notes)
+- Python 3.10+
+
+建议：
+
+- 将解析服务常驻运行，便于摘要和 PDF 问答功能稳定使用。
+
+## 快速开始
+
+1. 先创建并填写配置文件：
+
+```bash
+cp config_example.json config.json
 ```
-{
-    "server": { 
-        "url": "http://127.0.0.1:13210",
-        "timeout": 30
-    },
-    "llm": {
-        "openaiBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "modelName": "qwen-plus-latest",
-        "apiKey": "sk-xx",
-        "temperature": 0.8
-    },
-    "summary": {
-        "chunkSize": 64000,
-        "chunkOverlap": 1000,
-        "maxChunk": 50,
-        "only_link_file": false,
-        "support_item_types": [
-            "preprint",
-            "journalArticle",
-            "magazineArticle",
-            "conferencePaper",
-            "manuscript",
-            "thesis"
-        ]
-    },
-    "qa": {
-        "saveColelctionKey":  "IV5MQ9HV"
-    }
-}
+
+必填字段：
+
+- server.url
+- llm.openaiBaseUrl
+- llm.modelName
+- llm.apiKey
+
+2. 启动解析服务：
+
+```bash
+python parse_server.py
 ```
-- **`serverUrl`**：用于解析 PDF 文件和将总结后的 markdown 转换为 html 的服务器地址。
-- **llm**：LLM相关信息
-- **`chunkOverlap`**：map-reduce 方案下分片间重合的大小。
-- **`only_link_file`**：配合 [ZotMoov](https://github.com/wileyyugioh/zotmoov) 或 [ZotFile](https://github.com/jlegewie/zotfile) 使用。如果使用这两个或类似的插件将论文 PDF 以 Zotero 的 "Link to File" 形式保存，则应设置 `only_link_file` 为 `true`，否则设置为 `false`。
-- support_item_types 摘要支持的item类型
-- saveColelctionKey 问答保存的collection key
 
+如需后台运行：
 
-prompt文件夹 用于配置模型输入的prompt。
-- **`stuffPrompt`**：当 PDF 文档没有超出模型上下文时使用的提示词。
-- **`mapPrompt`**：map-reduce 方案下 map 阶段使用的提示词。当 PDF 文档超出模型上下文时使用，将 PDF 拆分成多个分片，分片LLM总结(map)后再合并交互LLM(reduce)。
-- **`reducePrompt`**：map-reduce 方案下 reduce 阶段使用的提示词。
-## 利用标注(annotation)生成笔记(note)
-官方自带annoation->note的功能，但是不支持对层次header的提取。目前我们使用对Header特殊颜色标注的方式来解决这个问题。更优雅的方案应该是自动识别填充[TODO]。
+```bash
+nohup python parse_server.py > parse_server.log 2>&1 &
+```
 
-需要安装better-notes插件，zotero_note_template.js即为笔记模板。zotero_autoupdate_notes.js 为action-tags脚本，会自动更新笔记。
-![alt text](docs/image.png)
-![alt text](docs/image-1.png)
+3. 在 Zotero 插件中配置脚本与模板：
 
-## LLM生成摘要
-zotero_pdf_summary.js
+- 在 actions-tags 中加载动作脚本
+- 在 better-notes 中加载笔记模板
 
-在 Zotero 中使用 LLM 自动总结论文并生成笔记。
+4. 按你的流程在 Zotero 中触发对应脚本。
 
-在 zotero 中打开论文时，zotero-actions-tags 触发 JavaScript 脚本，获取论文的 PDF 文件地址和论文名，并向后台服务parse_server.py发送 PDF 进行解析与分割。之后本地调用 LLM API 总结论文。获得总结后将生成的 markdown 发送给后台服务转换为 html。最后将 html 总结写入到论文笔记中。
+## 配置说明
 
-![example](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124100826.png)
+主配置文件：config.json
 
-## QA流程
-zotero_qa.js
+- server.url：PDF 解析与 markdown 转 HTML 的后端服务地址
+- server.timeout：请求超时时间（秒）
+- llm.openaiBaseUrl：兼容 OpenAI 的 API 地址
+- llm.modelName：模型名称
+- llm.apiKey：模型接口密钥
+- llm.temperature：生成温度
+- summary.chunkSize：map-reduce 分片大小
+- summary.chunkOverlap：相邻分片重叠长度
+- summary.maxChunk：最大分片数量
+- summary.only_link_file：若使用 Link to File 流程（如 ZotMoov/ZotFile），请设为 true
+- summary.support_item_types：支持生成摘要的条目类型
+- qa.saveColelctionKey：问答结果保存到的 collection key（保持现有命名以兼容当前脚本）
 
-使用LLM回答用户提出的问题。逻辑：
-- 用户提出问题后，根据问题搜索zotero库中相关的items，将items信息(标题、摘要、摘要、 AI总结)与prompt合并，调用LLM API，返回答案，最后将答案写入到note中。
-- 需要增加一个pdf_qa的逻辑，在pdf阅读中，用户提出问题，搜索提取相关片段，调用LLM API，返回答案，最后将答案写入到note中。
+提示词模板位于 prompt/ 目录：
 
-nohup python parse_server.py & 最好添加进开机项。
+- stuff_prompt.txt：单分片摘要
+- map_prompt.txt：多分片摘要的 map 阶段
+- reduce_prompt.txt：多分片摘要的 reduce 阶段
+- qa_prompt.txt：问答提示词
 
-## note导出
-zotero_export_note.js
-笔记应当是可以搜索的，才在日常中融入到知识处理流程。导出是希望把阅读笔记导入到专门的笔记软件中，方便搜索与使用。
+## 功能：标注转结构化笔记
 
-注意在代码中指定导出note的key来匹配。
+相关文件：
 
-![alt text](docs/image3.png)
+- zotero_note_template.js
+- zotero_autoupdate_note.js
+
+该功能在 Zotero 原生标注转笔记能力上增加了层级结构支持。
+当前方案通过颜色标注标记标题层级，从而生成结构化笔记。
+
+![annotation-note-example-1](docs/image.png)
+![annotation-note-example-2](docs/image-1.png)
+
+## 功能：AI 摘要
+
+相关文件：
+
+- zotero_pdf_summary.js
+
+流程：
+
+1. 获取选中文献的 PDF 和元信息
+2. 将 PDF 发送到 parse_server.py 进行解析与分片
+3. 调用 LLM 执行摘要（stuff 或 map-reduce）
+4. 将 markdown 转为 HTML
+5. 写回 Zotero 笔记
+
+![summary-example](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124100826.png)
+
+## 功能：语义问答
+
+相关文件：
+
+- zotero_qa.js
+
+问答模式：
+
+- 库级问答：检索相关条目，结合元信息和已有摘要后调用 LLM
+- PDF 级问答：检索相关 PDF 片段后带上下文调用 LLM
+
+## 功能：笔记导出与同步
+
+相关文件：
+
+- zotero_export_note.js
+
+导出后可在外部笔记系统中进行检索与复用。
+可按你的工作流在脚本或配置中指定目标 key。
+
+![note-export-example](docs/image3.png)
+
+## 核心脚本索引
+
+| 脚本文件 | 作用 |
+|-------------|---------|
+| zotero_pdf_summary.js | 为选中文献生成 AI 摘要 |
+| zotero_qa.js | 执行库级/PDF 级 LLM 问答 |
+| zotero_note_template.js | 根据标注生成结构化笔记 |
+| zotero_autoupdate_note.js | 周期性更新模板生成笔记 |
+| zotero_export_note.js | 导出笔记用于外部同步 |
+| parse_server.py | 提供 PDF 解析与 markdown 转 HTML 服务 |
+
+## 说明
+
+- 本仓库重点提供工作流脚本与编排思路。
+- 可根据实际 Zotero 使用习惯按需独立采用各脚本。
