@@ -1,0 +1,40 @@
+name: Python CI
+run-name: ${{ github.workflow }} | ${{ github.event.head_commit.message || github.event.pull_request.title || github.sha }}
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 拉取仓库代码，供后续检查使用
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 安装指定版本 Python 运行环境
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 语法级编译检查，快速发现 Python 文件中的语法错误
+      - name: Compile Python files
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./.venv/*" \
+            -not -path "./venv/*" | sort)
+
+          if [ -z "$files" ]; then
+            echo "No Python files to check."
+            exit 0
+          fi
+
+          echo "$files" | while read -r f; do
+            python -m py_compile "$f"
+          done
