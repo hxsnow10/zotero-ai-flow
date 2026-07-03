@@ -29,7 +29,9 @@ app = FastAPI()
 
 # 添加中间件支持代理头信息
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])  # 生产环境建议配置具体域名
+app.add_middleware(
+    TrustedHostMiddleware, allowed_hosts=["*"]
+)  # 生产环境建议配置具体域名
 
 # 添加限制器异常处理
 app.state.limiter = limiter
@@ -40,8 +42,7 @@ DB_PATH = "summary_cache.db"
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 try:
-    cursor.execute(
-        """
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS summaries (
         title TEXT,
         link TEXT,
@@ -49,8 +50,7 @@ try:
         summary TEXT,
         model_name TEXT
     )
-    """
-    )
+    """)
     conn.commit()
 except sqlite3.Error as e:
     print(f"Database error: {e}")
@@ -135,7 +135,9 @@ async def upload_paper(
     pdf: UploadFile = UploadFile(...),
 ):
     """上传论文 PDF 并返回总结"""
-    print(f'------------- /upload ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------')
+    print(
+        f'------------- /upload ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
+    )
     real_secret = os.getenv("SECRET_KEY")
     if secret != real_secret:
         raise HTTPException(status_code=403, detail="Invalid secret key")
@@ -179,7 +181,9 @@ async def parse_pdf(
     pdf: UploadFile = UploadFile(...),
 ):
     """上传并解析 PDF，返回文本片段"""
-    print(f'------------- /parse_pdf ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------')
+    print(
+        f'------------- /parse_pdf ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
+    )
     pdf_path = Path(f"uploads/{pdf.filename}")
     os.makedirs(pdf_path.parent, exist_ok=True)
     data = await pdf.read()
@@ -193,13 +197,13 @@ async def parse_pdf(
         pages = loader.load()
 
         references_pages = []
-        for k,page in enumerate(pages):
+        for k, page in enumerate(pages):
             if "References" in page.page_content:
                 references_pages.append(k)
-        if len(references_pages)>=1 and references_pages[-1]>len(pages)/2:
-            pages = pages[:references_pages[-1]+1]
-        
-        if len(pages)>=50:
+        if len(references_pages) >= 1 and references_pages[-1] > len(pages) / 2:
+            pages = pages[: references_pages[-1] + 1]
+
+        if len(pages) >= 50:
             pages = pages[:50]
 
         full_text = "\n".join(page.page_content for page in pages)
@@ -224,7 +228,6 @@ async def parse_pdf(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
 
 def post_process_summary(summary: str) -> str:
@@ -252,7 +255,9 @@ async def convert_md_to_html(
     markdown: str = Form(...),
     model_name: str = Form(...),
 ):
-    print(f'------------- /md_to_html ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------')
+    print(
+        f'------------- /md_to_html ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
+    )
     """将 Markdown 转换为 HTML"""
     try:
         summary = post_process_summary(markdown)
@@ -268,7 +273,9 @@ async def convert_md_to_html(
 @limiter.limit("3/minute")
 async def test_ip(request: Request):
     """测试客户端 IP 地址和限流"""
-    print(f'------------- /test_ip ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------')
+    print(
+        f'------------- /test_ip ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
+    )
     client_ip = get_remote_address(request)
     forwarded_for = request.headers.get("X-Forwarded-For")
     real_ip = request.headers.get("X-Real-IP")
@@ -281,14 +288,14 @@ async def test_ip(request: Request):
 
 
 if __name__ == "__main__":
-    print(f"============================== {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==============================")
+    print(
+        f"============================== {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} =============================="
+    )
 
     # 设置日志配置
     logging.basicConfig(
         level=logging.INFO,
-        handlers=[
-            logging.StreamHandler(sys.stdout)  # 将日志输出到 stdout
-        ],
+        handlers=[logging.StreamHandler(sys.stdout)],  # 将日志输出到 stdout
     )
 
     parser = argparse.ArgumentParser()
