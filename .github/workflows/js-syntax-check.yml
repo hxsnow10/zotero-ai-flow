@@ -1,0 +1,41 @@
+name: JS Syntax Check
+run-name: ${{ github.workflow }} | ${{ github.event.head_commit.message || github.event.pull_request.title || github.sha }}
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  js-syntax-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 拉取仓库代码，供后续检查使用
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 安装 Node.js 运行环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 语法检查普通 JS 文件，排除 Better Notes 模板语法文件
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(find . -name "*.js" \
+            -not -path "./.git/*" \
+            -not -path "./node_modules/*" \
+            -not -name "zotero_note_template.js" \
+            -not -name "zotero_merge_annoattaion_summary.js" | sort)
+
+          if [ -z "$files" ]; then
+            echo "No JavaScript files to check."
+            exit 0
+          fi
+
+          echo "$files" | while read -r f; do
+            node --check "$f"
+          done
