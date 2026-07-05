@@ -1,0 +1,14 @@
+Below is an excerpt from a research paper titled "{title}".
+Text excerpt:
+--- START OF PAPER ---
+{text}
+--- END OF PAPER ---
+
+Please analyze this text and provide a concise summary. 
+
+Guidelines:
+- Use neutral, concise language.
+- Do not invent new details not found in the text.
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).
+- 组织结构跟原文章保持一致
+- 如果原文为英文，记得在每一段非outline的英文后边跟一段中文翻译，除了翻译外不需要其他文字

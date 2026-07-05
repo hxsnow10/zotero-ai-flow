@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Zotero AI Flow 设置</title>
+    <script src="prefs.js" defer></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        padding: 16px 20px;
+        color: #333;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0 0 16px;
+        color: #111;
+      }
+      .section {
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .section:last-child {
+        border-bottom: none;
+      }
+      .section h3 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .field {
+        margin-bottom: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      label {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      input[type="text"],
+      input[type="number"],
+      input[type="password"] {
+        border: 1px solid #ccc;
+        padding: 5px 8px;
+        border-radius: 4px;
+        font-size: 13px;
+        width: 100%;
+        box-sizing: border-box;
+        background: #fff;
+      }
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      input[type="password"]:focus {
+        outline: 2px solid #0066cc;
+        border-color: transparent;
+      }
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: normal;
+      }
+      .description {
+        font-size: 11px;
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Zotero AI Flow 配置</h2>
+
+    <div class="section">
+      <h3>解析服务 (Parse Server)</h3>
+      <div class="field">
+        <label for="server-url">服务地址 (Server URL)</label>
+        <input
+          type="text"
+          id="server-url"
+          data-pref="server.url"
+          placeholder="http://127.0.0.1:13210"
+        />
+        <span class="description">PDF 解析与 Markdown 转 HTML 的后端服务地址（需启动 parse_server.py）</span>
+      </div>
+      <div class="field">
+        <label for="server-timeout">连接超时 (Timeout, 秒)</label>
+        <input
+          type="number"
+          id="server-timeout"
+          data-pref="server.timeout"
+          min="1"
+          max="300"
+        />
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>LLM 配置</h3>
+      <div class="field">
+        <label for="llm-base-url">API 地址 (Base URL)</label>
+        <input
+          type="text"
+          id="llm-base-url"
+          data-pref="llm.openaiBaseUrl"
+          placeholder="https://api.openai.com/v1"
+        />
+        <span class="description">兼容 OpenAI API 的接口地址</span>
+      </div>
+      <div class="field">
+        <label for="llm-model">模型名称 (Model Name)</label>
+        <input
+          type="text"
+          id="llm-model"
+          data-pref="llm.modelName"
+          placeholder="gpt-4o"
+        />
+      </div>
+      <div class="field">
+        <label for="llm-api-key">API 密钥 (API Key)</label>
+        <input type="password" id="llm-api-key" data-pref="llm.apiKey" />
+      </div>
+      <div class="field">
+        <label for="llm-temperature">Temperature</label>
+        <input
+          type="text"
+          id="llm-temperature"
+          data-pref="llm.temperature"
+          placeholder="0.8"
+        />
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>摘要设置 (Summary)</h3>
+      <div class="field">
+        <label for="summary-chunk-size">分片大小 (Chunk Size, 字符数)</label>
+        <input
+          type="number"
+          id="summary-chunk-size"
+          data-pref="summary.chunkSize"
+        />
+      </div>
+      <div class="field">
+        <label for="summary-chunk-overlap">分片重叠长度 (Chunk Overlap)</label>
+        <input
+          type="number"
+          id="summary-chunk-overlap"
+          data-pref="summary.chunkOverlap"
+        />
+      </div>
+      <div class="field">
+        <label for="summary-max-chunk">最大分片数 (Max Chunks)</label>
+        <input
+          type="number"
+          id="summary-max-chunk"
+          data-pref="summary.maxChunk"
+        />
+        <span class="description">超过此分片数时跳过摘要生成</span>
+      </div>
+      <div class="field">
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            id="summary-only-link"
+            data-pref="summary.onlyLinkFile"
+          />
+          仅处理链接文件 (Only Link File)
+        </label>
+        <span class="description">使用 ZotMoov/ZotFile 等链接文件流程时启用</span>
+      </div>
+      <div class="field">
+        <label for="summary-item-types">支持的条目类型（逗号分隔）</label>
+        <input
+          type="text"
+          id="summary-item-types"
+          data-pref="summary.supportItemTypes"
+        />
+        <span class="description"
+          >例如: preprint,journalArticle,conferencePaper,thesis</span
+        >
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>问答设置 (Q&amp;A)</h3>
+      <div class="field">
+        <label for="qa-collection-key">问答结果保存的 Collection Key</label>
+        <input
+          type="text"
+          id="qa-collection-key"
+          data-pref="qa.saveCollectionKey"
+          placeholder="IV5MQ9HV"
+        />
+        <span class="description">在 Zotero 中找到目标文件夹并复制其 key</span>
+      </div>
+    </div>
+  </body>
+</html>

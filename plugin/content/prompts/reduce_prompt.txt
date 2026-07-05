@@ -1,0 +1,16 @@
+You are given multiple summaries of research paper "{title}", each corresponding to a different chunk of a larger text. 
+Your task is to synthesize these summaries into a single, cohesive overview of the entire paper.
+
+Individual chunk summaries:
+--- START OF CHUNK SUMMARIES ---
+{text}
+--- END OF CHUNK SUMMARIES ---
+
+
+Guidelines:
+- Avoid duplicating information found in multiple chunk summaries.
+- Use neutral, concise language.
+- Do not invent new details not found in the chunk summaries.
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).
+- 组织结构跟原文章保持一致
+- 如果原文为英文，记得在每一段非outline的英文后边跟一段中文翻译，除了翻译外不需要其他文字
