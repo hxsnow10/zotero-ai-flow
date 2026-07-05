@@ -16,7 +16,7 @@ permissions:
 
 engine:
   id: copilot
-  model: deepseek-v4
+  model: deepseek-v4-pro
   env:
     COPILOT_PROVIDER_BASE_URL: https://api.deepseek.com/
     COPILOT_PROVIDER_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
