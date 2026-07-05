@@ -1,0 +1,138 @@
+name: issue-agent-ai-steps
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  models: read
+
+concurrency:
+  group: issue-agent-ai-steps-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  ai-handle-issue:
+    if: ${{ !github.event.issue.pull_request && contains(github.event.comment.body, '@github agent') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 准备补丁提示词
+        run: |
+          set -euo pipefail
+          mkdir -p .github/agent-output
+          {
+            echo "你是资深软件工程师。请根据以下 Issue 和评论指令，直接输出可应用的 git unified diff 补丁。"
+            echo ""
+            echo "强约束："
+            echo "1. 只输出补丁内容，不要解释，不要 Markdown 代码块。"
+            echo "2. 补丁必须以 'diff --git' 开头。"
+            echo "3. 改动应尽量最小且可运行。"
+            echo "4. 可新增文件，但不要改动与任务无关文件。"
+            echo "5. 若信息不足，请输出空内容。"
+            echo ""
+            echo "【Issue 标题】"
+            echo '${{ github.event.issue.title }}'
+            echo ""
+            echo "【Issue 描述】"
+            echo '${{ github.event.issue.body }}'
+            echo ""
+            echo "【用户评论指令】"
+            echo '${{ github.event.comment.body }}'
+            echo ""
+            echo "【仓库文件列表】"
+            find . -maxdepth 3 -type f \
+              ! -path './.git/*' \
+              ! -path './node_modules/*' \
+              | sed 's#^./##' | sort
+          } > .github/agent-output/prompt.txt
+
+      - name: 调用 AI 生成补丁
+        id: infer
+        uses: actions/ai-inference@v1
+        with:
+          prompt-file: .github/agent-output/prompt.txt
+
+      - name: 提取并应用补丁
+        id: apply_patch
+        run: |
+          set -euo pipefail
+          cp "${{ steps.infer.outputs.response-file }}" .github/agent-output/raw-response.txt
+
+          awk 'BEGIN{p=0} /^diff --git /{p=1} p{print}' .github/agent-output/raw-response.txt \
+            | sed '/^```/d' > .github/agent-output/patch.diff
+
+          if [[ ! -s .github/agent-output/patch.diff ]]; then
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            echo "reason=empty_patch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git apply --check --whitespace=nowarn .github/agent-output/patch.diff; then
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            echo "reason=invalid_patch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git apply --whitespace=nowarn .github/agent-output/patch.diff
+
+          if git diff --quiet; then
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_changes" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+          echo "reason=ok" >> "$GITHUB_OUTPUT"
+
+      - name: 无法直接改码时回帖
+        if: ${{ steps.apply_patch.outputs.applied != 'true' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reason = `${{ steps.apply_patch.outputs.reason }}`;
+            const reasonMap = {
+              empty_patch: 'AI 未生成可用补丁，可能是指令信息不足。',
+              invalid_patch: 'AI 生成了补丁，但无法通过 git apply 校验。',
+              no_changes: '补丁可应用，但未产生实际文件变更。'
+            };
+            const detail = reasonMap[reason] || `未知原因: ${reason}`;
+            const body = [
+              '已接收 `@github agent` 指令，但本次未能直接生成可提交代码变更。',
+              '',
+              `原因：${detail}`,
+              '',
+              '建议：请在评论中补充更明确的目标文件、预期行为和边界条件，然后再次 @github agent。'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      - name: 创建代码 PR
+        if: ${{ steps.apply_patch.outputs.applied == 'true' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ai/issue-${{ github.event.issue.number }}-code
+          title: "[issue-agent] 实现 issue #${{ github.event.issue.number }} 指令"
+          commit-message: "feat(ai): implement issue #${{ github.event.issue.number }} request"
+          body: |
+            本 PR 由 issue 评论中的 @github agent 自动生成。
+
+            - 触发 issue: #${{ github.event.issue.number }}
+            - 触发评论: ${{ github.event.comment.html_url }}
+            - 处理方式: AI 生成 unified diff 并自动应用
+
+            如有偏差，请直接在该 issue 继续补充指令并 @github agent。
+          labels: |
+            automation
+            copilot
