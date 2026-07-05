@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   ai-handle-issue:
-    if: ${{ !github.event.issue.pull_request && contains(github.event.comment.body, '@github agent') }}
+    if: ${{ !github.event.issue.pull_request && contains(github.event.comment.body, '@github-agent') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -104,11 +104,11 @@ jobs:
             };
             const detail = reasonMap[reason] || `未知原因: ${reason}`;
             const body = [
-              '已接收 `@github agent` 指令，但本次未能直接生成可提交代码变更。',
+              '已接收 `@github-agent` 指令，但本次未能直接生成可提交代码变更。',
               '',
               `原因：${detail}`,
               '',
-              '建议：请在评论中补充更明确的目标文件、预期行为和边界条件，然后再次 @github agent。'
+              '建议：请在评论中补充更明确的目标文件、预期行为和边界条件，然后再次 @github-agent。'
             ].join('\n');
 
             await github.rest.issues.createComment({
@@ -126,13 +126,13 @@ jobs:
           title: "[issue-agent] 实现 issue #${{ github.event.issue.number }} 指令"
           commit-message: "feat(ai): implement issue #${{ github.event.issue.number }} request"
           body: |
-            本 PR 由 issue 评论中的 @github agent 自动生成。
+            本 PR 由 issue 评论中的 @github-agent 自动生成。
 
             - 触发 issue: #${{ github.event.issue.number }}
             - 触发评论: ${{ github.event.comment.html_url }}
             - 处理方式: AI 生成 unified diff 并自动应用
 
-            如有偏差，请直接在该 issue 继续补充指令并 @github agent。
+            如有偏差，请直接在该 issue 继续补充指令并 @github-agent。
           labels: |
             automation
             copilot
