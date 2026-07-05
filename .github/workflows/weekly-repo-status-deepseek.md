@@ -13,15 +13,16 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+  copilot-requests: write
 
 engine:
   id: copilot
-  model: deepseek-v4-pro
+  model: ${{ vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-flash' && 'deepseek-v4-flash' || vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-pro' && 'deepseek-v4-pro' || vars.GH_AW_MODEL_PROFILE == 'opus-4.8' && 'opus-4.8' || 'gpt-5.3-codex' }}
   env:
-    COPILOT_PROVIDER_BASE_URL: https://api.deepseek.com/
-    COPILOT_PROVIDER_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-    COPILOT_PROVIDER_TYPE: openai
-
+    COPILOT_PROVIDER_BASE_URL: ${{ (vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-flash' || vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-pro') && 'https://api.deepseek.com/' || '' }}
+    COPILOT_PROVIDER_API_KEY: ${{ (vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-flash' || vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-pro') && secrets.DEEPSEEK_API_KEY || '' }}
+    COPILOT_PROVIDER_TYPE: ${{ (vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-flash' || vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-pro') && 'openai' || '' }}
+    COPILOT_MODEL: ${{ (vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-flash' || vars.GH_AW_MODEL_PROFILE == 'deepseek-v4-pro') && vars.GH_AW_MODEL_PROFILE || '' }}
 network:
   allowed: [defaults, api.deepseek.com]
 
