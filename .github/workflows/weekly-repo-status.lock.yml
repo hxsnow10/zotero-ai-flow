@@ -57,7 +57,7 @@
 name: "仓库状态报告"
 on:
   schedule:
-  - cron: "9 5 * * 1"
+  - cron: "7 4 * * 1"
     # Friendly format: weekly on monday (scattered)
   workflow_dispatch:
     inputs:
@@ -107,7 +107,7 @@ jobs:
           safe-output-artifact-client: ${{ env.GH_AW_MAX_DAILY_AI_CREDITS != '' }}
         env:
           GH_AW_SETUP_WORKFLOW_NAME: "仓库状态报告"
-          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/daily-repo-status.lock.yml@${{ github.ref }}
+          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/weekly-repo-status.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.65"
           GH_AW_INFO_AWF_VERSION: "v0.27.11"
           GH_AW_INFO_BODY_MODIFIED: "false"
@@ -146,8 +146,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: agentic-workflow-usage-dailyrepostatus-${{ github.run_id }}
-          restore-keys: agentic-workflow-usage-dailyrepostatus-
+          key: agentic-workflow-usage-weeklyrepostatus-${{ github.run_id }}
+          restore-keys: agentic-workflow-usage-weeklyrepostatus-
           path: /tmp/gh-aw/agentic-workflow-usage-cache.jsonl
       - name: Restore daily AIC usage cache (artifact fallback)
         id: restore-daily-aic-cache-fallback
@@ -170,7 +170,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           GH_AW_WORKFLOW_NAME: "仓库状态报告"
-          GH_AW_WORKFLOW_ID: "daily-repo-status"
+          GH_AW_WORKFLOW_ID: "weekly-repo-status"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_WORKFLOW_DISPATCH_AW_CONTEXT: ${{ github.event.inputs.aw_context || '' }}
           GH_AW_HAS_SLASH_COMMAND: "false"
@@ -215,7 +215,7 @@ jobs:
         id: check-lock-file
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          GH_AW_WORKFLOW_FILE: "daily-repo-status.lock.yml"
+          GH_AW_WORKFLOW_FILE: "weekly-repo-status.lock.yml"
           GH_AW_CONTEXT_WORKFLOW_REF: "${{ github.workflow_ref }}"
         with:
           script: |
@@ -252,20 +252,20 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_0138ee703a7549ac_EOF'
+          cat << 'GH_AW_PROMPT_1d65f1cd36a82d52_EOF'
           <system>
-          GH_AW_PROMPT_0138ee703a7549ac_EOF
+          GH_AW_PROMPT_1d65f1cd36a82d52_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_0138ee703a7549ac_EOF'
+          cat << 'GH_AW_PROMPT_1d65f1cd36a82d52_EOF'
           <safe-output-tools>
           Tools: create_issue, missing_tool, missing_data, noop
           </safe-output-tools>
-          GH_AW_PROMPT_0138ee703a7549ac_EOF
+          GH_AW_PROMPT_1d65f1cd36a82d52_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/mcp_cli_tools_prompt.md"
-          cat << 'GH_AW_PROMPT_0138ee703a7549ac_EOF'
+          cat << 'GH_AW_PROMPT_1d65f1cd36a82d52_EOF'
           <github-context>
           The following GitHub context information is available for this workflow:
           {{#if github.actor}}
@@ -294,12 +294,12 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_0138ee703a7549ac_EOF
+          GH_AW_PROMPT_1d65f1cd36a82d52_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_0138ee703a7549ac_EOF'
+          cat << 'GH_AW_PROMPT_1d65f1cd36a82d52_EOF'
           </system>
-          {{#runtime-import .github/workflows/daily-repo-status.md}}
-          GH_AW_PROMPT_0138ee703a7549ac_EOF
+          {{#runtime-import .github/workflows/weekly-repo-status.md}}
+          GH_AW_PROMPT_1d65f1cd36a82d52_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -394,7 +394,7 @@ jobs:
       GH_AW_ASSETS_MAX_SIZE_KB: 0
       GH_AW_MCP_LOG_DIR: /tmp/gh-aw/mcp-logs/safeoutputs
       GH_AW_RUNTIME_FEATURES: ${{ vars.GH_AW_RUNTIME_FEATURES }}
-      GH_AW_WORKFLOW_ID_SANITIZED: dailyrepostatus
+      GH_AW_WORKFLOW_ID_SANITIZED: weeklyrepostatus
     outputs:
       agentic_engine_timeout: ${{ steps.detect-agent-errors.outputs.agentic_engine_timeout || 'false' }}
       ai_credits_rate_limit_error: ${{ steps.parse-mcp-gateway.outputs.ai_credits_rate_limit_error || 'false' }}
@@ -424,7 +424,7 @@ jobs:
           parent-span-id: ${{ needs.activation.outputs.setup-parent-span-id || needs.activation.outputs.setup-span-id }}
         env:
           GH_AW_SETUP_WORKFLOW_NAME: "仓库状态报告"
-          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/daily-repo-status.lock.yml@${{ github.ref }}
+          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/weekly-repo-status.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.65"
           GH_AW_INFO_AWF_VERSION: "v0.27.11"
           GH_AW_INFO_BODY_MODIFIED: "false"
@@ -1002,7 +1002,7 @@ jobs:
       contents: read
       issues: write
     concurrency:
-      group: "gh-aw-conclusion-daily-repo-status"
+      group: "gh-aw-conclusion-weekly-repo-status"
       cancel-in-progress: false
       queue: max
     env:
@@ -1023,7 +1023,7 @@ jobs:
           parent-span-id: ${{ needs.activation.outputs.setup-parent-span-id || needs.activation.outputs.setup-span-id }}
         env:
           GH_AW_SETUP_WORKFLOW_NAME: "仓库状态报告"
-          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/daily-repo-status.lock.yml@${{ github.ref }}
+          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/weekly-repo-status.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.65"
           GH_AW_INFO_AWF_VERSION: "v0.27.11"
           GH_AW_INFO_BODY_MODIFIED: "false"
@@ -1091,8 +1091,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: agentic-workflow-usage-dailyrepostatus-${{ github.run_id }}
-          restore-keys: agentic-workflow-usage-dailyrepostatus-
+          key: agentic-workflow-usage-weeklyrepostatus-${{ github.run_id }}
+          restore-keys: agentic-workflow-usage-weeklyrepostatus-
           path: /tmp/gh-aw/agentic-workflow-usage-cache.jsonl
       - name: Write daily AIC usage cache entry
         id: write-daily-aic-cache
@@ -1112,7 +1112,7 @@ jobs:
         continue-on-error: true
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: agentic-workflow-usage-dailyrepostatus-${{ github.run_id }}
+          key: agentic-workflow-usage-weeklyrepostatus-${{ github.run_id }}
           path: /tmp/gh-aw/agentic-workflow-usage-cache.jsonl
       - name: Upload daily AIC usage cache artifact
         id: upload-daily-aic-cache
@@ -1139,7 +1139,7 @@ jobs:
           GH_AW_AIC: ${{ needs.agent.outputs.aic }}
           GH_AW_THREAT_DETECTION_AIC: ${{ needs.detection.outputs.aic }}
           GH_AW_AMBIENT_CONTEXT: ${{ needs.agent.outputs.ambient_context }}
-          GH_AW_WORKFLOW_ID: "daily-repo-status"
+          GH_AW_WORKFLOW_ID: "weekly-repo-status"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -1208,7 +1208,7 @@ jobs:
           GH_AW_WORKFLOW_SOURCE_URL: "${{ github.server_url }}/githubnext/agentics/blob/1c6668b751c51af8571f01204ceffb19362e0f66/workflows/repo-status.md"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
-          GH_AW_WORKFLOW_ID: "daily-repo-status"
+          GH_AW_WORKFLOW_ID: "weekly-repo-status"
           GH_AW_ACTION_FAILURE_ISSUE_EXPIRES_HOURS: "168"
           GH_AW_ENGINE_ID: "copilot"
           GH_AW_SECRET_VERIFICATION_RESULT: ${{ needs.activation.outputs.secret_verification_result }}
@@ -1268,7 +1268,7 @@ jobs:
           parent-span-id: ${{ needs.activation.outputs.setup-parent-span-id || needs.activation.outputs.setup-span-id }}
         env:
           GH_AW_SETUP_WORKFLOW_NAME: "仓库状态报告"
-          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/daily-repo-status.lock.yml@${{ github.ref }}
+          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/weekly-repo-status.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.65"
           GH_AW_INFO_AWF_VERSION: "v0.27.11"
           GH_AW_INFO_BODY_MODIFIED: "false"
@@ -1504,7 +1504,7 @@ jobs:
       GH_AW_AGENT_AIC: ${{ needs.agent.outputs.aic }}
       GH_AW_AIC: ${{ needs.agent.outputs.aic }}
       GH_AW_AMBIENT_CONTEXT: ${{ needs.agent.outputs.ambient_context }}
-      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/daily-repo-status"
+      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/weekly-repo-status"
       GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
       GH_AW_DETECTION_REASON: ${{ needs.detection.outputs.detection_reason }}
       GH_AW_EFFECTIVE_TOKENS: ${{ needs.agent.outputs.effective_tokens }}
@@ -1513,7 +1513,7 @@ jobs:
       GH_AW_ENGINE_VERSION: "1.0.65"
       GH_AW_RUNTIME_FEATURES: ${{ vars.GH_AW_RUNTIME_FEATURES }}
       GH_AW_THREAT_DETECTION_AIC: ${{ needs.detection.outputs.aic }}
-      GH_AW_WORKFLOW_ID: "daily-repo-status"
+      GH_AW_WORKFLOW_ID: "weekly-repo-status"
       GH_AW_WORKFLOW_NAME: "仓库状态报告"
       GH_AW_WORKFLOW_SOURCE: "githubnext/agentics/workflows/repo-status.md@1c6668b751c51af8571f01204ceffb19362e0f66"
       GH_AW_WORKFLOW_SOURCE_URL: "${{ github.server_url }}/githubnext/agentics/blob/1c6668b751c51af8571f01204ceffb19362e0f66/workflows/repo-status.md"
@@ -1537,7 +1537,7 @@ jobs:
           parent-span-id: ${{ needs.activation.outputs.setup-parent-span-id || needs.activation.outputs.setup-span-id }}
         env:
           GH_AW_SETUP_WORKFLOW_NAME: "仓库状态报告"
-          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/daily-repo-status.lock.yml@${{ github.ref }}
+          GH_AW_CURRENT_WORKFLOW_REF: ${{ github.repository }}/.github/workflows/weekly-repo-status.lock.yml@${{ github.ref }}
           GH_AW_INFO_VERSION: "1.0.65"
           GH_AW_INFO_AWF_VERSION: "v0.27.11"
           GH_AW_INFO_BODY_MODIFIED: "false"
