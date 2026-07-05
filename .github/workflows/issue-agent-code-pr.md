@@ -30,16 +30,16 @@ safe-outputs:
 
 ## 目标
 
-当用户在 **Issue 评论**中显式提及 `@github agent` 时：
+当用户在 **Issue 评论**中显式提及 `@github-agent` 时：
 1. 理解当前 Issue 上下文与该条评论中的用户指令。
 2. 在当前仓库实现所需代码改动（必要时包含测试或文档更新）。
 3. 通过 `create-pull-request` 提交 PR，并在 PR 描述中清楚说明变更内容、原因与验证方式。
-如果没有提及 `@github agent`，则不执行任何操作。
+如果没有提及 `@github-agent`，则不执行任何操作。
 
 ## 执行流程
 
 1. 读取触发评论与关联 Issue 内容，确认这是 Issue（不是 PR）上下文。
-2. 检查评论是否包含 `@github agent`：
+2. 检查评论是否包含 `@github-agent`：
    - 若不包含，调用 `noop` 并结束。
    - 若包含，继续执行。
 3. 从评论中提取明确需求：
