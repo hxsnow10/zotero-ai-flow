@@ -6,8 +6,7 @@ description: |
   and project recommendations.
 
 on:
-  schedule:  
-    - cron: '0 10 * * 1' # Every Monday at 10:00 UTC
+  schedule: 'weekly on monday'   # 注意：这里没有 - cron:
   workflow_dispatch:
 
 permissions:
@@ -54,6 +53,7 @@ source: githubnext/agentics/workflows/repo-status.md@1c6668b751c51af8571f01204ce
 - 适度使用表情符号以增加互动性
 - 保持简洁 —— 根据实际活动量调整篇幅
 - 使用中文
+- 适当控制agent成本
 
 ## 执行流程
 
