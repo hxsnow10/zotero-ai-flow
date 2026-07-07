@@ -359,6 +359,7 @@ class ZoteroLLMQA {
     return formatString(qa_prompt, {
       question: query,
       context_info: contextInfoStr,
+<<<<<<< HEAD:zotero_actions/zotero_qa.js
     });
   }
 
@@ -396,6 +397,8 @@ class ZoteroLLMQA {
     return formatString(qa_prompt, {
       question: query,
       papers_summary: papersSummary,
+=======
+>>>>>>> 4b3a614 (fix format):zotero_qa/zotero_qa.js
     });
   }
 
