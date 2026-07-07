@@ -13,6 +13,9 @@ import json
 import os
 import sys
 import asyncio
+# 这是官方的利用搜索来做综述的例子
+# https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/examples/literature-review.html
+
 
 # 更新日志格式，包含文件名、函数名和行号
 logger = logging.getLogger(__name__)
@@ -84,10 +87,55 @@ class ZoteroQASystem:
             logger.error(f"加载配置文件出错: {str(e)}")
             return config
     
+
+    def _setup_agents_plan(self):
+        # 目前缺乏plan与分解的概念
+        # plan_agent, 然后我们看他的子任务类型是不是固定的，固定的就设置那些子任务agent，比如说搜索agent
+        # 如果不是也没问题：让agent自己一步步去处理每个步骤，预测时扩展即可。
+        # 那么这里就要灵活地调度agent，比如总结agent是最后执行，eval在总结之后。autogen有一个hadoff的例子
+        # https://microsoft.github.io/autogen/stable//user-guide/agentchat-user-guide/swarm.html
+        # autogen Multi-Agent Design Patterns : 展示了各种agent交互的例子
+
+        planner = AssistantAgent(
+            "planner",
+            model_client=self.model_client,
+            handoffs=["financial_analyst", "news_analyst", "writer"],
+            system_message="""You are a research planning coordinator.
+            Coordinate market research by delegating to specialized agents:
+            searcher_and_summary,writer
+            Always send your plan first, then handoff to appropriate agent.
+            Always handoff to a single agent at a time.
+            Use APPROVE when research is complete.""",
+        )
+
+        search_analysis = AssistantAgent(
+            "searcher_and_summary",
+            model_client=self.model_client,
+            handoffs=["financial_analyst", "news_analyst", "writer"],
+            system_message="""You are a news analyst.
+    Gather and analyze relevant news using the search_zotero, search_elasticsearch或search_arxiv  tool.
+    Summarize from news.
+    Always handoff back to planner when analysis is complete.""",
+            tools = TOOLS,
+            reflect_on_tool_use = True,
+        )
+
+        writer = AssistantAgent(
+            "writer",
+            model_client=self.model_client,
+            handoffs=["planner"],
+            system_message="""You are a  writer.
+            Compile research findings into clear, concise reports.
+            Always handoff back to planner when writing is complete.""",
+        )
+
+        termination = TextMentionTermination("APPROVE")
+        self.team = RoundRobinGroupChat([planner,search_analysis,writer],termination_condition=termination,max_turns=
+
     def _setup_agents(self):
         """设置智能体系统"""
         # 用户代理
-        
+    
         # 助手智能体 - 主要交互智能体
         assistant_agent = AssistantAgent(
             "assistant",

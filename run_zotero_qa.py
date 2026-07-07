@@ -26,7 +26,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description="Zotero QA System")
-    parser.add_argument("--config", type=str, default="zotero_qa/config.json", help="配置文件路径")
+    parser.add_argument("--config", type=str, default="config.json", help="配置文件路径")
     parser.add_argument("--query", type=str, default=None, help="搜索查询")
     parser.add_argument("--debug", action="store_true", help="启用调试模式")
     parser.add_argument("--examples", action="store_true", help="运行使用示例")
@@ -49,7 +49,7 @@ def main():
         
         # 导入并运行主程序
         from zotero_qa.main import main as run_qa
-        sys.exit(run_qa())
+        sys.exit(run_qa(cmd_args))
 
 if __name__ == "__main__":
     main()

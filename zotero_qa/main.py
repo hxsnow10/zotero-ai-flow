@@ -29,10 +29,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from zotero_qa.qa_agents import ZoteroQASystem
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# 更新日志格式，包含文件名、函数名和行号
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-def parse_args():
+def parse_args(args=None):
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description="Zotero QA System using AutoGen")
     
@@ -56,11 +60,15 @@ def parse_args():
         help="Enable debug logging"
     )
     
-    return parser.parse_args()
+    # 解析传入的参数或命令行参数
+    if args:
+        return parser.parse_args(args)
+    else:
+        return parser.parse_args()
 
-def main():
+def main(args=None):
     """主函数"""
-    args = parse_args()
+    args = parse_args(args)
     
     # 设置日志级别
     if args.debug:

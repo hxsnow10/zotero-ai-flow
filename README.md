@@ -72,7 +72,35 @@ config.json is used to configure server address, model API, and other informatio
     },
     "qa": {
         "saveColelctionKey":  "IV5MQ9HV"
-    }
+    },
+    "document_splitting": {
+        "enabled": true,
+        "method": "paragraph",
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
+        "min_paragraph_length": 200,
+        "section_patterns": [
+            "^\\s*(?:Chapter|CHAPTER)\\s+\\d+\\s*(?::|\\.|\\s)\\s*(.+)$",
+            "^\\s*\\d+\\.\\s+(.+)$",
+            "^\\s*(?:Abstract|ABSTRACT)\\s*$"
+        ]
+    },
+    "indexing": {
+        "recreate_index": false,
+        "item_types": [
+            "journalArticle", 
+            "book", 
+            "bookSection", 
+            "conferencePaper", 
+            "thesis"
+        ],
+        "limit": 0
+    },
+    "aliyun": {
+        "api_key": "your_aliyun_api_key",
+        "embedding_model": "text-embedding-v3"
+    },
+    "use_embeddings": true
 }
 ```
 - **`serverUrl`**: Server address for parsing PDF files and converting summaries from markdown to html.
@@ -120,4 +148,72 @@ Note that you need to specify the note key to match in the code.
 
 ![alt text](docs/image3.png)
 
-Translated from README_zh.md
+## Elasticsearch Integration
+
+### Build Zotero ES Index
+
+The `build_zotero_es_index.py` script allows you to index your Zotero library into Elasticsearch for advanced semantic search capabilities:
+
+```bash
+# Run with default configuration file
+python build_zotero_es_index.py
+
+# Run with a custom configuration file 
+python build_zotero_es_index.py --config my_custom_config.json
+```
+
+All indexing options are now configured in the `config.json` file under the `indexing` section:
+
+```json
+"indexing": {
+    "recreate_index": false,  // Whether to recreate the index if it exists
+    "item_types": [           // Types of Zotero items to index
+        "journalArticle", 
+        "book", 
+        "bookSection", 
+        "conferencePaper", 
+        "thesis"
+    ],
+    "limit": 0                // Number of items to process (0 = all)
+}
+```
+
+#### Document Splitting
+
+Document splitting is now configured in the `document_splitting` section:
+
+```json
+"document_splitting": {
+    "enabled": true,         // Whether to enable document splitting
+    "method": "paragraph",   // Splitting method: paragraph, chunk, or section
+    "chunk_size": 1000,      // Size of chunks when using "chunk" method
+    "chunk_overlap": 200,    // Overlap between chunks
+    "min_paragraph_length": 200,  // Minimum paragraph length
+    "section_patterns": [    // Patterns for section headers
+        "^\\s*(?:Chapter|CHAPTER)\\s+\\d+\\s*(?::|\\.|\\s)\\s*(.+)$",
+        "^\\s*\\d+\\.\\s+(.+)$",
+        "^\\s*(?:Abstract|ABSTRACT)\\s*$"
+    ]
+}
+```
+
+Embedding configuration is under the `aliyun` section:
+
+```json
+"aliyun": {
+    "api_key": "your_aliyun_api_key",
+    "embedding_model": "text-embedding-v3"  // Model to use for embeddings
+},
+"use_embeddings": true  // Whether to generate and store embeddings
+```
+
+### Search with Vector Similarity
+
+After indexing, you can use the Q&A system to perform semantic searches that utilize the vector embeddings:
+
+```bash
+python run_zotero_qa.py --query "Find papers about machine learning methods similar to reinforcement learning"
+```
+
+The system will automatically detect when to use vector search versus keyword search for optimal results.
+

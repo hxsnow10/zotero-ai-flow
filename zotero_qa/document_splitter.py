@@ -11,7 +11,11 @@ import re
 from typing import List, Dict, Any, Optional, Callable, Union
 import logging
 
-logging.basicConfig(level=logging.INFO)
+# 更新日志格式，包含文件名、函数名和行号
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class DocumentSplitter:

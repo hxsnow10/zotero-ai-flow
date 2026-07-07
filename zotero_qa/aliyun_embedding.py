@@ -15,8 +15,16 @@ import argparse
 import os
 import json
 import numpy as np
+import logging
 from typing import Union, List, Optional
 from openai import OpenAI
+
+# 添加日志配置，包含文件名、函数名和代码行数
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 def get_openai_client(api_key: Optional[str] = None):
     """
@@ -53,34 +61,37 @@ def get_text_vec_aliyun(
         text: 输入文本或文本列表
         dimensions: 向量维度，默认1024
         model: 使用的模型名称
-        api_key: 可选的API密钥，如果未提供则从环境变量获取
         batch_size: 批处理大小，避免发送过多文本
         max_length: 单个文本的最大长度
         
     Returns:
         文本的向量表示，如果输入是单个文本则返回向量，如果是列表则返回向量列表
     """
-
+    # 检查API密钥是否设置
+    api_key = os.getenv("ALIYUN_API_KEY")
+    if not api_key:
+        raise ValueError("API密钥未提供，请设置ALIYUN_API_KEY环境变量")
     
-    # 统一转换为列表格式处理
-    is_single = isinstance(text, str)
-    texts = [text] if is_single else text
-    
-    # 检查文本长度，如果过长则截断
-    processed_texts = []
-    for t in texts:
-        if len(t) > max_length:
-            # 超过限制的文本有几种处理方式 1）截断向量化 2）按长度切片存储 3）按段落切片，如果太长了，内部切片后取向量mean或者max
-            print(f"警告: 文本长度超过{max_length}，将被截断")
-            processed_texts.append(t[:max_length])
-        else:
-            processed_texts.append(t)
-    
-    # 分批处理
-    all_vectors = []
-    for i in range(0, len(processed_texts), batch_size):
-        batch = processed_texts[i:i+batch_size]
-        try:
+    # 使用现有的client变量或创建新的
+    try:
+        # 统一转换为列表格式处理
+        is_single = isinstance(text, str)
+        texts = [text] if is_single else text
+        
+        # 检查文本长度，如果过长则截断
+        processed_texts = []
+        for t in texts:
+            if len(t) > max_length:
+                logger.warning(f"文本长度超过{max_length}，将被截断")
+                processed_texts.append(t[:max_length])
+            else:
+                processed_texts.append(t)
+        
+        # 分批处理
+        all_vectors = []
+        for i in range(0, len(processed_texts), batch_size):
+            batch = processed_texts[i:i+batch_size]
+            
             completion = client.embeddings.create(
                 model=model,
                 input=batch,
@@ -91,14 +102,17 @@ def get_text_vec_aliyun(
             # 提取向量
             for embed_data in completion.data:
                 all_vectors.append(embed_data.embedding)
-        except Exception as e:
-            print(f"获取文本向量时出错: {str(e)}")
-            # 如果发生错误，返回零向量
-            for _ in range(len(batch)):
-                all_vectors.append([0.0] * dimensions)
+                
+        # 返回单个向量或向量列表
+        return all_vectors[0] if is_single else all_vectors
     
-    # 返回单个向量或向量列表
-    return all_vectors[0] if is_single else all_vectors
+    except Exception as e:
+        logger.error(f"获取文本向量时出错: {str(e)}")
+        # 如果出错，对于单个文本返回零向量，对于文本列表返回对应数量的零向量
+        if is_single:
+            return [0.0] * dimensions
+        else:
+            return [[0.0] * dimensions for _ in range(len(texts))]
 
 def average_vectors(vectors: List[List[float]]) -> List[float]:
     """
