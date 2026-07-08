@@ -1,3 +1,2 @@
 # Better Notes template scripts use template-engine syntax that is not valid plain JS
-zotero_note_template.js
-zotero_merge_annoattaion_summary.js
+zotero_note_templates/

@@ -1,12 +1,12 @@
 {
     "server": {
-        "url": "http://127.0.0.1:13210",
+        "url": "http://127.0.0.1:13211",
         "timeout": 30
     },
     "llm": {
-        "openaiBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "modelName": "qwen-plus-latest",
-        "apiKey": "sk-262b703289bf41a2bdc3ee36427dfbfb",
+        "openaiBaseUrl": "https://api.deepseek.com",
+        "modelName": "deepseek-v4-flash",
+        "apiKey": "sk-7dc774f52995450c87ff0370daad418f",
         "temperature": 0.8
     },
     "summary": {
@@ -24,6 +24,51 @@
         ]
     },
     "qa": {
-        "saveColelctionKey":  "IV5MQ9HV"
+        "saveCollectionKey": "IV5MQ9HV",
+        "llm":{
+            "model":"",
+            "temperature": 0.8,
+            "api_key":"",
+            "openai_base_url": ""
+        }
+    },
+    "work_dir": "./workspace",
+    "elasticsearch": {
+        "host": "http://localhost:9200",
+        "index": "zotero_papers",
+        "vector_dim": 1024
+    },
+    "zotero": {
+        "api_key": "Kl7Puj6BKl85FKlnnyp8vh8o",
+        "library_id": "3160691",
+        "library_type": "user"
+    },
+    "zotero_indexing": {
+        "recreate_index": false,
+        "item_types": [
+            "journalArticle", 
+            "book", 
+            "bookSection", 
+            "conferencePaper", 
+            "thesis"
+        ],
+        "use_embeddings": true,
+        "embedding_model": "text-embedding-v3",
+        "vector_dim": 1024,
+        "item_num_limit": 20,
+        "document_splitting": {
+            "enabled": true,
+            "method": "chunk",
+            "chunk_size": 10000,
+            "chunk_overlap": 1000,
+            "min_paragraph_length": 200,
+            "section_patterns": [
+                "^\\s*(?:Chapter|CHAPTER)\\s+\\d+\\s*(?::|\\.|\\s)\\s*(.+)$",
+                "^\\s*\\d+\\.\\s+(.+)$",
+                "^\\s*(?:Abstract|ABSTRACT)\\s*$",
+                "^\\s*(?:Introduction|INTRODUCTION)\\s*$",
+                "^\\s*(?:Conclusion|CONCLUSION)\\s*$"
+            ]
+        }
     }
 }

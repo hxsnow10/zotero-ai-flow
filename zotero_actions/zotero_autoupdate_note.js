@@ -1,5 +1,5 @@
 /**
- * A description of this script.
+ * 自动更新PDF标注生成的笔记
  * @author hxsnow10
  * @usage
  * @link https://github.com/windingwind/zotero-actions-tags/discussions/466

@@ -1,5 +1,6 @@
 // @author zhikaiyici,xiahong
 // @link [PUBLISH PAGE URL](https://github.com/windingwind/zotero-better-notes/discussions/1202)
+// 本script相对于原版，主要考虑合并ai-generate-summary的逻辑
 ${ await(async() => {
     // 辅助函数：检测字符串是否包含中文字符
     const containsChinese = (text) => /[\u4e00-\u9fa5]/.test(text);
@@ -105,6 +106,43 @@ ${ await(async() => {
 	let label = "";
 	let level = 1;
     const groupedAnnotations = {};
+
+    function processHtmlHeader(line){
+        let label = "";
+        let level = 1;
+        let match = line.match(/<h(\d)>(.*)<\/h(\d)>/);
+        if (match){
+            label = match[1].trim();
+            level = parseInt(match[0]);
+        }
+        return [label, level];
+    }
+    // 遍历note
+    const notes = topItem.getNotes();
+    for (let noteid of notes) {
+        let note = Zotero.Items.get(noteid);
+        const content = note.getNote();
+        if (!content.includes("AI Generated Summary")) continue;
+        let label = "";
+        let level = 1;
+        let labelContent = "";
+        for (let line of content.split("\n")) {
+            if (line.includes("<h")){
+                [label, level] = processHtmlHeader(line);
+
+            }
+			if (!groupedAnnotations[label]){
+                    groupedAnnotations[label] = {
+                        level: level,
+                        content: [""],
+                        childLabels: {}
+                    };
+                }
+            groupedAnnotations[label].content[0] += line+"\n";
+        }
+    }
+
+    // 遍历pdf类型附件
     for (let attachment of attachments) {
         let annots = attachment.getAnnotations() || "";
         let attachmentTitle = `<i>📄For Document: <a href="zotero://open-pdf/0_${attachment.key}">${attachment.getField("title")}</a></i>`;     
@@ -118,7 +156,8 @@ ${ await(async() => {
             if (annoItem.annotationColor == label_color){
                 label = annoItem.annotationText;
                 level = get_label_level(label) || level;
-                myAnnotation.content = "";
+				myAnnotation.content = "";
+                //myAnnotation.content = "\n------Annotations------:\n";
             } else {
                 // get content
                 if (["note", "text", "highlight", "underline"].includes(annoItem.annotationType)) {
@@ -142,7 +181,7 @@ ${ await(async() => {
 					if (myComment){
                         annoItem.annotationComment = myComment;
                 	}
-					if (myComment && myAnnotation.content && !myComment.includes(annoItem.annotationText)){
+					if (myComment && myAnnotation.content){
 						myAnnotation.content += myComment;
 					}
                 }
@@ -151,13 +190,13 @@ ${ await(async() => {
                     //if (["image", "ink"].includes(annoItem.annotationType)) {
 					if (html){
 						html = html.replace(/<[^>]*span[^>]*>/gi, '');
-						//html = html.replace(/<[^>]*simg[^>]*>/gi, '');
+						html = html.replace(/<[^>]*simg[^>]*>/gi, '');
                     myAnnotation.content += "<blockquote>" + html + "</blockquote>";
                     //}
 					if (myComment){
                 		annoItem.annotationComment = myComment;
             		}
-					if (myComment && myAnnotation.content && !myComment.includes(annoItem.annotationText)){
+					if (myComment && myAnnotation.content){
 						myAnnotation.content += myComment;
 					}
 					}
@@ -178,7 +217,7 @@ ${ await(async() => {
 			// 添加内容
             if (myAnnotation.content){
 				myAnnotation.content = myAnnotation.content.replace(/<[^>]*span[^>]*>/gi, '');
-				//myAnnotation.content = myAnnotation.content.replace(/<[^>]*simg[^>]*>/gi, '');
+				myAnnotation.content = myAnnotation.content.replace(/<[^>]*simg[^>]*>/gi, '');
 			    currentLevel[label].content.push(myAnnotation.content);
             }
 			last_label = label;
