@@ -1,5 +1,5 @@
 /**
- * A description of this script.
+ * 自动更新PDF标注生成的笔记
  * @author hxsnow10
  * @usage
  * @link https://github.com/windingwind/zotero-actions-tags/discussions/466
@@ -170,9 +170,9 @@ async function processSelectedItems(items) {
   itemProgress.setProgress(100);
   itemProgress.setText(
     "finsh process: sucess_num = " +
-      processSuccNum +
-      " / total_num = " +
-      items.length,
+    processSuccNum +
+    " / total_num = " +
+    items.length,
   );
   progressWindow.startCloseTimer(5000);
   return (
