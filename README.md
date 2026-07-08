@@ -3,6 +3,7 @@
 # Zotero AI Workflow
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动化工具集。
 项目将 Zotero 插件、Python 服务和 LLM API 组合在一起，支持：
 
@@ -48,6 +49,8 @@ Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动�
 1. 先创建并填写配置文件：
 
 =======
+=======
+>>>>>>> origin/main
 Zotero AI Workflow is an automation toolkit for literature reading and note management in Zotero.
 It combines Zotero plugins, Python services, and LLM APIs to support:
 
@@ -89,22 +92,30 @@ Recommended:
 
 1. Create and fill the config file first:
 
+<<<<<<< HEAD
 >>>>>>> 40bfc43 (update README)
+=======
+>>>>>>> origin/main
 ```bash
 cp config_example.json config.json
 ```
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 必填字段：
 =======
 Required fields:
 >>>>>>> 40bfc43 (update README)
+=======
+Required fields:
+>>>>>>> origin/main
 
 - server.url
 - llm.openaiBaseUrl
 - llm.modelName
 - llm.apiKey
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 2. 启动解析服务：
 
@@ -278,6 +289,58 @@ Files:
 - zotero_note_template.js
 - zotero_autoupdate_note.js
 
+=======
+2. Start the parser service:
+
+```bash
+python parse_server.py
+```
+
+Or run in background:
+
+```bash
+nohup python parse_server.py > parse_server.log 2>&1 &
+```
+
+3. Configure scripts/templates in Zotero plugins:
+
+- Load action scripts into actions-tags
+- Load note template into better-notes
+
+4. Trigger scripts in Zotero according to your workflow.
+
+## Configuration Guide
+
+Main config file: config.json
+
+- server.url: backend service endpoint for PDF parsing and markdown-to-html conversion
+- server.timeout: request timeout in seconds
+- llm.openaiBaseUrl: OpenAI-compatible API endpoint
+- llm.modelName: model identifier
+- llm.apiKey: LLM API key
+- llm.temperature: generation temperature
+- summary.chunkSize: chunk size for map-reduce summarization
+- summary.chunkOverlap: overlap size between adjacent chunks
+- summary.maxChunk: upper limit of chunks
+- summary.only_link_file: set true when using Link to File workflows (for plugins like ZotMoov/ZotFile)
+- summary.support_item_types: supported Zotero item types for summarization
+- qa.saveColelctionKey: collection key where Q&A notes are saved (kept as-is for script compatibility)
+
+Prompt templates are under prompt/:
+
+- stuff_prompt.txt: single-chunk summarization
+- map_prompt.txt: map phase for multi-chunk summarization
+- reduce_prompt.txt: reduce phase for final merged summary
+- qa_prompt.txt: Q&A prompt
+
+## Feature: Annotation to Structured Notes
+
+Files:
+
+- zotero_note_template.js
+- zotero_autoupdate_note.js
+
+>>>>>>> origin/main
 This feature extends Zotero's default annotation-to-note behavior by supporting hierarchical note generation.
 A practical approach in this repo is to use color-coded annotations to mark heading levels.
 
@@ -337,4 +400,7 @@ Configure the target key in script/config as needed for your workflow.
 
 - This repository focuses on workflow scripts and orchestration.
 - You can adopt scripts independently based on your own Zotero setup.
+<<<<<<< HEAD
 >>>>>>> 40bfc43 (update README)
+=======
+>>>>>>> origin/main
