@@ -6,7 +6,7 @@
     "llm": {
         "openaiBaseUrl": "https://api.deepseek.com",
         "modelName": "deepseek-v4-flash",
-        "apiKey": "sk-7dc774f52995450c87ff0370daad418f",
+        "apiKey": "sk-xxxx",
         "temperature": 0.8
     },
     "summary": {
@@ -25,10 +25,10 @@
     },
     "qa": {
         "saveCollectionKey": "IV5MQ9HV",
-        "llm":{
-            "model":"",
+        "llm": {
+            "model": "",
             "temperature": 0.8,
-            "api_key":"",
+            "api_key": "",
             "openai_base_url": ""
         }
     },
@@ -46,10 +46,10 @@
     "zotero_indexing": {
         "recreate_index": false,
         "item_types": [
-            "journalArticle", 
-            "book", 
-            "bookSection", 
-            "conferencePaper", 
+            "journalArticle",
+            "book",
+            "bookSection",
+            "conferencePaper",
             "thesis"
         ],
         "use_embeddings": true,
