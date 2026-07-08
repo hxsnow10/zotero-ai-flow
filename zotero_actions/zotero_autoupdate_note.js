@@ -170,9 +170,9 @@ async function processSelectedItems(items) {
   itemProgress.setProgress(100);
   itemProgress.setText(
     "finsh process: sucess_num = " +
-    processSuccNum +
-    " / total_num = " +
-    items.length,
+      processSuccNum +
+      " / total_num = " +
+      items.length,
   );
   progressWindow.startCloseTimer(5000);
   return (

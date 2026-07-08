@@ -1,219 +1,178 @@
-English | [中文](README_zh.md)
+English | [中文](README.md)
 
 # Zotero AI Workflow
-This repository provides a set of automated workflows based on Zotero, including summary generation, Q&A, and note generation-update-export capabilities. The workflow components depend on [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags) and are implemented as JavaScript scripts.
 
-## Zotero Workflow Summary
-Here's our basic workflow with Zotero:
-- When items are added to the library
-    - [Auto] Add #To-Read tag
-    - [Manual] Add tags like #To-More-Read
-- When opening an item
-    - [Auto] Translate abstract
-    - [Auto] Generate AI summary, save to note
-- When reading an item
-    - [Manual] Read AI summary
-    - [Manual] Add annotations
-    - [Interactive] Interact with AI for PDF Q&A, save to note
-- When closing an item
-    - [Auto] Generate notes based on annotations
-    - [Auto] Remove #To-Read tag
-    - [Manual] Remove #To-More-Read tag
-- When starting Zotero program and opening main window
-    - [Auto] Update notes → local markdown, sync with external note software (like wolai); update once every 7 days
-    - [Interactive] Interact with AI for library-level Q&A, save to note
+Zotero AI Workflow is an automated toolset for Zotero literature reading and note management. It combines Zotero plugins, Python services, and LLM APIs to support:
+
+- AI paper summarization
+- Library-level and PDF-level Q&A
+- Structured notes from annotations
+- Note export and external sync
+
+Core architecture: some action (item added/opened/closed) → zotero-actions triggers script → call Python backend / zotero-better-notes template / LLM API etc. → write back to note
+
+This repository is for users who want to build a flexible Zotero workflow on their own.
+
+For a GUI plugin, try zotero-AI-Butler.
+
+## Zotero Workflow Overview
+
+A common workflow is as follows:
+
+- Item added
+  - Auto: Add To-Read tag
+  - Manual: Add project-specific tags
+- Item opened
+  - Auto: Generate AI summary and write to note
+- Item reading
+  - Manual: Add PDF annotations
+  - Interactive: Ask LLM questions and write answers to note
+- Item closed or periodic maintenance
+  - Auto: Generate or update structured notes from annotations
+  - Auto: Export notes for external sync
+
+## Environment & Plugins
+
+Required components:
+
+- Zotero
+- [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags)
+- [zotero-better-notes](https://github.com/windingwind/zotero-better-notes)
+- Python 3.10+
+- `pip install .` to install dependencies
 
 ## Quick Start
-1. After downloading the repository, start the parser server: `nohup python parse_server.py &`
-2. Depends on better-notes and actions-tags plugins. Configure these templates and scripts as needed.
-3. Copy `cp config_example.json config.json`, and configure server address, model API, etc. Note that you need to modify the configuration path, template name, etc. in the code.
-4. [Optional] Configure prompts for model input.
-Then trigger these scripts in Zotero.
 
-## Core Logic
-This repository provides the following scripts; each function is an independent script that can be used separately.
+1. Create and fill in the config file:
 
-| Script File | Description |
-|-------------|-------------|
-| zotero_autoupdate_notes.js | Update notes generated from specified templates |
-| zotero_note_template.js | Template for converting annotations to notes, supports hierarchical header extraction |
-| zotero_pdf_summary.js | LLM-generated summary |
-| zotero_pdf_qa.js | LLM Q&A |
-| zotero_export_note.js | Export notes to files for syncing with external software |
+```bash
+cp config_example.json config.json
+```
+
+Required fields:
+
+- server.url
+- llm.openaiBaseUrl
+- llm.modelName
+- llm.apiKey
+
+2. Start the parser service:
+
+```bash
+nohup python parse_server.py > parse_server.log 2>&1 &
+```
+
+You can add this to your bash_profile for auto-start on login.
+
+3. Configure scripts and templates in Zotero plugins:
+
+- In actions-tags, load action scripts from ./zotero_actions/
+![actions-tags-config](docs/img-actions-tags-config.png)
+
+- In better-notes, load note templates from ./zotero_note_templates/
+
+4. Trigger the corresponding scripts in Zotero according to your workflow.
 
 ## Configuration
 
-config.json is used to configure server address, model API, and other information.
-```
-{
-    "server": { 
-        "url": "http://127.0.0.1:13210",
-        "timeout": 30
-    },
-    "llm": {
-        "openaiBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "modelName": "qwen-plus-latest",
-        "apiKey": "sk-xx",
-        "temperature": 0.8
-    },
-    "summary": {
-        "chunkSize": 64000,
-        "chunkOverlap": 1000,
-        "maxChunk": 50,
-        "only_link_file": false,
-        "support_item_types": [
-            "preprint",
-            "journalArticle",
-            "magazineArticle",
-            "conferencePaper",
-            "manuscript",
-            "thesis"
-        ]
-    },
-    "qa": {
-        "saveColelctionKey":  "IV5MQ9HV"
-    },
-    "document_splitting": {
-        "enabled": true,
-        "method": "paragraph",
-        "chunk_size": 1000,
-        "chunk_overlap": 200,
-        "min_paragraph_length": 200,
-        "section_patterns": [
-            "^\\s*(?:Chapter|CHAPTER)\\s+\\d+\\s*(?::|\\.|\\s)\\s*(.+)$",
-            "^\\s*\\d+\\.\\s+(.+)$",
-            "^\\s*(?:Abstract|ABSTRACT)\\s*$"
-        ]
-    },
-    "indexing": {
-        "recreate_index": false,
-        "item_types": [
-            "journalArticle", 
-            "book", 
-            "bookSection", 
-            "conferencePaper", 
-            "thesis"
-        ],
-        "limit": 0
-    },
-    "aliyun": {
-        "api_key": "your_aliyun_api_key",
-        "embedding_model": "text-embedding-v3"
-    },
-    "use_embeddings": true
-}
-```
-- **`serverUrl`**: Server address for parsing PDF files and converting summaries from markdown to html.
-- **llm**: LLM-related information
-- **`chunkOverlap`**: The overlap size between chunks in the map-reduce approach.
-- **`only_link_file`**: For use with [ZotMoov](https://github.com/wileyyugioh/zotmoov) or [ZotFile](https://github.com/jlegewie/zotfile). If you use these or similar plugins to save paper PDFs as Zotero's "Link to File", set `only_link_file` to `true`; otherwise, set it to `false`.
-- **support_item_types**: Item types supported for summary generation
-- **saveColelctionKey**: Collection key where Q&A results are saved
+Main config file: config.json
 
-The prompts folder contains configuration files for model input prompts.
-- **`stuffPrompt`**: Prompt used when the PDF document doesn't exceed the model's context limit.
-- **`mapPrompt`**: Prompt used in the map phase of the map-reduce approach. Used when the PDF document exceeds the model's context, splitting the PDF into multiple chunks, summarizing each chunk (map), and then combining with LLM interaction (reduce).
-- **`reducePrompt`**: Prompt used in the reduce phase of the map-reduce approach.
+- server.url: Backend service address for PDF parsing and markdown-to-HTML conversion
+- server.timeout: Request timeout (seconds)
+- llm.openaiBaseUrl: OpenAI-compatible API address
+- llm.modelName: Model name
+- llm.apiKey: Model API key
+- llm.temperature: Generation temperature
+- summary.chunkSize: Chunk size for map-reduce
+- summary.chunkOverlap: Overlap between adjacent chunks
+- summary.maxChunk: Maximum number of chunks
+- summary.only_link_file: Set to true if using Link to File workflow (e.g. ZotMoov/ZotFile)
+- summary.support_item_types: Item types supported for summary generation
+- qa.saveColelctionKey: Collection key for saving Q&A results (keep naming for compatibility)
 
-## Generate Notes from Annotations
-The official Zotero functionality for converting annotations to notes doesn't support hierarchical header extraction. Currently, we solve this problem by using special color annotations for headers. A more elegant solution would be automatic identification and filling [TODO].
+Prompt templates are located in the prompt/ directory:
 
-You need to install the better-notes plugin; zotero_note_template.js serves as the note template. zotero_autoupdate_notes.js is an action-tags script that automatically updates notes.
-![alt text](docs/image.png)
-![alt text](docs/image-1.png)
+- stuff_prompt.txt: Single-chunk summary
+- map_prompt.txt: Map phase of multi-chunk summary
+- reduce_prompt.txt: Reduce phase of multi-chunk summary
+- qa_prompt.txt: Q&A prompt
 
-## LLM Summary Generation
-zotero_pdf_summary.js
+## Feature: PDF Annotations to Structured Notes
 
-Use LLM to automatically summarize papers and generate notes in Zotero.
+Related files:
 
-When opening a paper in Zotero, zotero-actions-tags triggers a JavaScript script that gets the paper's PDF file address and title, and sends the PDF to the backend service parse_server.py for parsing and splitting. Then it calls the LLM API locally to summarize the paper. After getting the summary, it sends the generated markdown to the backend service for conversion to html. Finally, it writes the html summary to the paper's note.
+- Template: zotero_note_templates/zotero_note_template.js
+- Action script: zotero_actions/zotero_autoupdate_note.js
 
-![example](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124100826.png)
+This feature adds hierarchical structure support on top of Zotero's native annotation-to-note capability. The current solution uses annotation colors to mark heading levels, generating structured notes.
 
-## Q&A Process
-zotero_pdf_qa.js
+![annotation-note-example-1](docs/image.png)
+![annotation-note-example-2](docs/image-1.png)
 
-Use LLM to answer user questions. Logic:
-- After a user asks a question, search for related items in the Zotero library based on the question, combine item information (title, abstract, AI summary) with the prompt, call the LLM API, return the answer, and finally write the answer to a note.
-- Need to add a pdf_qa logic: when reading a PDF, the user asks a question, the system searches for and extracts relevant passages, calls the LLM API, returns the answer, and finally writes the answer to a note.
+## Feature: AI Summary
 
-It's best to add `nohup python parse_server.py &` to your startup items.
+Related files:
 
-## Note Export
-zotero_export_note.js
-Notes should be searchable to be integrated into your knowledge processing workflow. Exporting is intended to import reading notes into dedicated note-taking software for easy searching and use.
+- zotero_actions/zotero_pdf_summary.js
 
-Note that you need to specify the note key to match in the code.
+Workflow:
 
-![alt text](docs/image3.png)
+1. Get the PDF and metadata of the selected item
+2. Send the PDF to parse_server.py for parsing and chunking
+3. Call LLM for summarization (stuff or map-reduce)
+4. Convert markdown to HTML
+5. Write back to Zotero note
 
-## Elasticsearch Integration
+![summary-example](https://qyzhang-obsidian.oss-cn-hangzhou.aliyuncs.com/20250124100826.png)
 
-### Build Zotero ES Index
+## Feature: Semantic Q&A
 
-The `build_zotero_es_index.py` script allows you to index your Zotero library into Elasticsearch for advanced semantic search capabilities:
+Related files:
 
-```bash
-# Run with default configuration file
-python build_zotero_es_index.py
+- zotero_actions/zotero_qa_simple.js
+- zotero_actions/zotero_qa.js
 
-# Run with a custom configuration file 
-python build_zotero_es_index.py --config my_custom_config.json
-```
+Semantic Q&A currently supports two modes:
+1. Simple Q&A: Send the question and selected content directly to LLM to get an answer. Question targets can be: selected items, selected PDF excerpts.
+2. RAG Q&A: First retrieve relevant content, then send the question and retrieval results to LLM for an answer. Retrieval methods include: web search, Zotero library search, semantic search on document excerpts, etc.
 
-All indexing options are now configured in the `config.json` file under the `indexing` section:
+Q&A modes:
 
-```json
-"indexing": {
-    "recreate_index": false,  // Whether to recreate the index if it exists
-    "item_types": [           // Types of Zotero items to index
-        "journalArticle", 
-        "book", 
-        "bookSection", 
-        "conferencePaper", 
-        "thesis"
-    ],
-    "limit": 0                // Number of items to process (0 = all)
-}
-```
+- Library-level Q&A: Search for relevant items, combine metadata and existing summaries, then call LLM
+- PDF-level Q&A: Search for relevant PDF excerpts, then call LLM with context
 
-#### Document Splitting
+## Feature: Note Export & Sync
 
-Document splitting is now configured in the `document_splitting` section:
+Related files:
 
-```json
-"document_splitting": {
-    "enabled": true,         // Whether to enable document splitting
-    "method": "paragraph",   // Splitting method: paragraph, chunk, or section
-    "chunk_size": 1000,      // Size of chunks when using "chunk" method
-    "chunk_overlap": 200,    // Overlap between chunks
-    "min_paragraph_length": 200,  // Minimum paragraph length
-    "section_patterns": [    // Patterns for section headers
-        "^\\s*(?:Chapter|CHAPTER)\\s+\\d+\\s*(?::|\\.|\\s)\\s*(.+)$",
-        "^\\s*\\d+\\.\\s+(.+)$",
-        "^\\s*(?:Abstract|ABSTRACT)\\s*$"
-    ]
-}
-```
+- zotero_actions/zotero_export_note.js
 
-Embedding configuration is under the `aliyun` section:
+Exported notes can be searched and reused in external note-taking systems.
+You can specify the target key in the script or config according to your workflow.
 
-```json
-"aliyun": {
-    "api_key": "your_aliyun_api_key",
-    "embedding_model": "text-embedding-v3"  // Model to use for embeddings
-},
-"use_embeddings": true  // Whether to generate and store embeddings
-```
+![note-export-example](docs/image3.png)
 
-### Search with Vector Similarity
+## Core Script Index
 
-After indexing, you can use the Q&A system to perform semantic searches that utilize the vector embeddings:
-
-```bash
-python run_zotero_qa.py --query "Find papers about machine learning methods similar to reinforcement learning"
-```
-
-The system will automatically detect when to use vector search versus keyword search for optimal results.
-
+| Directory | Script File | Description |
+|-----------|-------------|-------------|
+| Root | parse_server.py | Backend service for PDF parsing and markdown-to-HTML conversion |
+| Root | paper_summary.py | Paper summary generation (map-reduce) |
+| Root | build_zotero_es_index.py | Build Elasticsearch index |
+| Root | run_zotero_qa.py | Q&A system test entry point |
+| zotero_actions/ | zotero_pdf_summary.js | AI paper summary (get PDF → parse → LLM → write back to note) |
+| zotero_actions/ | zotero_autoupdate_note.js | Structured notes from annotations (color hierarchy, auto-update) |
+| zotero_actions/ | zotero_qa.js | Semantic Q&A (RAG retrieval + LLM answer) |
+| zotero_actions/ | zotero_qa_simple.js | Simple Q&A (direct LLM Q&A) |
+| zotero_actions/ | zotero_llm_qa.js | LLM-based Q&A interaction |
+| zotero_actions/ | zotero_export_note.js | Note export for external sync |
+| zotero_note_templates/ | zotero_note_template.js | Structured note template (color-marked hierarchy) |
+| zotero_note_templates/ | zotero_merge_annoattaion_summary.js | Merge annotations with AI summary (currently unused) |
+| zotero_note_templates/ | zotero_note_template_mergeai.js | Note template that merges AI summary (currently unused) |
+| zotero_qa/ | main.py | Q&A system main module |
+| zotero_qa/ | qa_agents.py | Q&A Agent (multi-agent collaboration) |
+| zotero_qa/ | search_es.py | Elasticsearch semantic search |
+| zotero_qa/ | search_tools.py | Search tools (web/Zotero/semantic) |
+| zotero_qa/ | aliyun_embedding.py | Aliyun Embedding API |
+| zotero_qa/ | document_splitter.py | Document splitting tool |
+| zotero_qa/ | zotero_search.py | Zotero library search API |

@@ -1,4 +1,4 @@
-中文 | [English](README.md)
+中文 | [English](README_en.md)
 
 # Zotero AI Workflow
 
@@ -69,7 +69,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 - 在 actions-tags 中加载动作脚本 ./zotero_actions/ 下的脚本
 ![actions-tags-config](docs/img-actions-tags-config.png) 
 
-- 在 better-notes 中加载笔记模板 ./zotero_better_notes/ 下的模板
+- 在 better-notes 中加载笔记模板 ./zotero_note_templates/ 下的模板
 
 4. 按你的流程在 Zotero 中触发对应脚本。
 
@@ -101,8 +101,8 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 
 相关文件：
 
-- 模板 zotero_note_template.js
-- 行为脚本 zotero_autoupdate_note.js
+- 模板 zotero_note_templates/zotero_note_template.js
+- 行为脚本 zotero_actions/zotero_autoupdate_note.js
 
 该功能在 Zotero 原生标注转笔记能力上增加了层级结构支持。
 当前方案通过颜色标注标记标题层级，从而生成结构化笔记。
@@ -114,7 +114,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 
 相关文件：
 
-- zotero_pdf_summary.js
+- zotero_actions/zotero_pdf_summary.js
 
 流程：
 
@@ -130,7 +130,8 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 
 相关文件：
 
-- zotero_qa
+- zotero_actions/zotero_qa_simple.js
+- zotero_actions/zotero_qa.js
 
 语义问答目前支持两种模式：
 1. 简单问答：将问题和选中相关内容直接发送给 LLM，获取答案。问题对象可能是：选中的文献、选中的PDF片段。
@@ -146,7 +147,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 
 相关文件：
 
-- zotero_export_note.js
+- zotero_actions/zotero_export_note.js
 
 导出后可在外部笔记系统中进行检索与复用。
 可按你的工作流在脚本或配置中指定目标 key。
@@ -155,5 +156,25 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 
 ## 核心脚本索引
 
-| 脚本文件 | 作用 |
-|-------------|---------|
+| 目录 | 脚本文件 | 作用 |
+|------|----------|------|
+| 根目录 | parse_server.py | PDF 解析与 markdown 转 HTML 的后端服务 |
+| 根目录 | paper_summary.py | 论文摘要生成（map-reduce） |
+| 根目录 | build_zotero_es_index.py | 构建 Elasticsearch 索引 |
+| 根目录 | run_zotero_qa.py | 运行问答系统测试入口 |
+| zotero_actions/ | zotero_pdf_summary.js | AI 论文摘要（获取 PDF → 解析 → LLM → 写回笔记） |
+| zotero_actions/ | zotero_autoupdate_note.js | 标注转结构化笔记（颜色层级、自动更新） |
+| zotero_actions/ | zotero_qa.js | 语义问答（RAG 检索 + LLM 回答） |
+| zotero_actions/ | zotero_qa_simple.js | 简单问答（直接 LLM 问答） |
+| zotero_actions/ | zotero_llm_qa.js | 基于 LLM 的问答交互 |
+| zotero_actions/ | zotero_export_note.js | 笔记导出用于外部同步 |
+| zotero_note_templates/ | zotero_note_template.js | 结构化笔记模板（颜色标记层级） |
+| zotero_note_templates/ | zotero_merge_annoattaion_summary.js | 合并标注与 AI 摘要到笔记,暂时无用 |
+| zotero_note_templates/ | zotero_note_template_mergeai.js | 合并 AI 摘要的笔记模板,暂时无用 |
+| zotero_qa/ | main.py | QA 系统主模块 |
+| zotero_qa/ | qa_agents.py | 问答 Agent（多智能体协作） |
+| zotero_qa/ | search_es.py | Elasticsearch 语义检索 |
+| zotero_qa/ | search_tools.py | 检索工具集（互联网/Zotero/语义） |
+| zotero_qa/ | aliyun_embedding.py | 阿里云 Embedding 接口 |
+| zotero_qa/ | document_splitter.py | 文档分片工具 |
+| zotero_qa/ | zotero_search.py | Zotero 库检索接口 |
