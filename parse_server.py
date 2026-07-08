@@ -22,7 +22,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import traceback
 
 # 导入新增接口需要的模块
-from zotero_qa.qa_agents import ZoteroQASystem # type: ignore
+from zotero_qa.qa_agents import ZoteroQASystem  # type: ignore
 from build_zotero_es_index import insert_zotero_item, load_config
 from zotero_qa.document_splitter import DocumentSplitter
 from zotero_qa.search_es import ElasticsearchClient
@@ -30,11 +30,8 @@ from pyzotero import zotero
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levellevel)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s',
-    handlers=[
-        logging.FileHandler("zotero_es_index.log"),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levellevel)s - [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s",
+    handlers=[logging.FileHandler("zotero_es_index.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
@@ -148,13 +145,14 @@ document_splitter = None
 zot = None
 config = None
 
+
 def init_services(config_path="config.json"):
     """初始化服务组件"""
     global qa_system, es_client, document_splitter, zot, config
-    
+
     # 加载配置
     config = load_config(config_path)
-    
+
     # 初始化QA系统
     if qa_system is None:
         try:
@@ -162,13 +160,15 @@ def init_services(config_path="config.json"):
             logger.info("QA系统初始化成功")
         except Exception as e:
             logger.error(f"QA系统初始化失败: {str(e)}")
-    
+
     # 初始化ES客户端
     if es_client is None:
         try:
             es_config = config.get("elasticsearch", {})
-            vector_dim = config.get("zotero_indexing", {}).get("vector_dim", es_config.get("vector_dim", 1024))
-            
+            vector_dim = config.get("zotero_indexing", {}).get(
+                "vector_dim", es_config.get("vector_dim", 1024)
+            )
+
             # 创建自定义映射
             mapping = {
                 "mappings": {
@@ -181,11 +181,22 @@ def init_services(config_path="config.json"):
                         "chunk_title": {"type": "text"},
                         "start_char": {"type": "integer"},
                         "end_char": {"type": "integer"},
-                        "title": {"type": "text", "analyzer": "standard", "fields": {"keyword": {"type": "keyword"}}},
+                        "title": {
+                            "type": "text",
+                            "analyzer": "standard",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
                         "abstract": {"type": "text", "analyzer": "standard"},
                         "content": {"type": "text", "analyzer": "standard"},
-                        "date": {"type": "date", "format": "yyyy-MM-dd||yyyy||epoch_millis", "ignore_malformed": True},
-                        "creators": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+                        "date": {
+                            "type": "date",
+                            "format": "yyyy-MM-dd||yyyy||epoch_millis",
+                            "ignore_malformed": True,
+                        },
+                        "creators": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
                         "tags": {"type": "keyword"},
                         "item_type": {"type": "keyword"},
                         "notes": {"type": "text", "analyzer": "standard"},
@@ -195,8 +206,8 @@ def init_services(config_path="config.json"):
                             "type": "dense_vector",
                             "dims": vector_dim,
                             "index": True,
-                            "similarity": "cosine"
-                        }
+                            "similarity": "cosine",
+                        },
                     }
                 },
                 "settings": {
@@ -204,25 +215,22 @@ def init_services(config_path="config.json"):
                     "number_of_replicas": 0,
                     "analysis": {
                         "analyzer": {
-                            "standard": {
-                                "type": "standard",
-                                "max_token_length": 255
-                            }
+                            "standard": {"type": "standard", "max_token_length": 255}
                         }
-                    }
-                }
+                    },
+                },
             }
-            
+
             es_client = ElasticsearchClient(
                 hosts=es_config.get("host", "http://localhost:9200"),
                 index_name=es_config.get("index", "zotero_papers"),
                 vector_dim=vector_dim,
-                mapping=mapping
+                mapping=mapping,
             )
             logger.info("ES客户端初始化成功")
         except Exception as e:
             logger.error(f"ES客户端初始化失败: {str(e)}")
-    
+
     # 初始化文档切片器
     if document_splitter is None:
         try:
@@ -230,7 +238,7 @@ def init_services(config_path="config.json"):
             logger.info("文档切片器初始化成功")
         except Exception as e:
             logger.error(f"文档切片器初始化失败: {str(e)}")
-    
+
     # 初始化Zotero客户端
     if zot is None:
         try:
@@ -238,14 +246,16 @@ def init_services(config_path="config.json"):
             zot = zotero.Zotero(
                 library_id=zotero_config.get("library_id", ""),
                 library_type=zotero_config.get("library_type", "user"),
-                api_key=zotero_config.get("api_key", "")
+                api_key=zotero_config.get("api_key", ""),
             )
             logger.info("Zotero客户端初始化成功")
         except Exception as e:
             logger.error(f"Zotero客户端初始化失败: {str(e)}")
 
+
 # 在服务器启动时初始化服务
 init_services()
+
 
 @app.post("/upload")
 @limiter.limit("1000/minute")  # 限制每个IP每分钟最多3次请求
@@ -417,7 +427,9 @@ async def question_answer(
     context: str = Form(None),
 ):
     """处理问答请求"""
-    print(f'------------- /question_answer ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------')
+    print(
+        f'------------- /question_answer ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
+    )
     try:
         # 确保QA系统已初始化
         if qa_system is None:
@@ -442,14 +454,17 @@ async def add_index(
     config_path: str = Form("config.json"),
 ):
     """添加Zotero条目到Elasticsearch索引"""
-    print(f'------------- /add_index ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------')
+    print(
+        f'------------- /add_index ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
+    )
     try:
         # 确保服务已初始化
         if es_client is None or document_splitter is None or zot is None:
             init_services()
             if es_client is None or document_splitter is None or zot is None:
-                raise HTTPException(status_code=500, detail="服务初始化失败，无法添加索引")
-
+                raise HTTPException(
+                    status_code=500, detail="服务初始化失败，无法添加索引"
+                )
 
         global config
         config = load_config(config_path)
@@ -465,12 +480,14 @@ async def add_index(
             "chunk_size": split_config.get("chunk_size", 1000),
             "overlap": split_config.get("chunk_overlap", 100),
             "min_paragraph_length": split_config.get("min_paragraph_length", 200),
-            "section_patterns": split_config.get("section_patterns", None)
+            "section_patterns": split_config.get("section_patterns", None),
         }
 
         # 获取向量维度
         es_config = config.get("elasticsearch", {})
-        vector_dim = indexing_config.get("vector_dim", es_config.get("vector_dim", 1024))
+        vector_dim = indexing_config.get(
+            "vector_dim", es_config.get("vector_dim", 1024)
+        )
 
         # 调用insert_zotero_item函数
         success = insert_zotero_item(
@@ -482,13 +499,18 @@ async def add_index(
             vector_dim=vector_dim,
             split_enabled=split_enabled,
             split_method=split_method,
-            split_params=split_params
+            split_params=split_params,
         )
 
         if success:
-            return {"status": "success", "message": f"已成功将条目 '{item.get('data', {}).get('title', 'Unknown')}' 添加到索引"}
+            return {
+                "status": "success",
+                "message": f"已成功将条目 '{item.get('data', {}).get('title', 'Unknown')}' 添加到索引",
+            }
         else:
-            raise HTTPException(status_code=500, detail="添加索引失败，详情请查看服务器日志")
+            raise HTTPException(
+                status_code=500, detail="添加索引失败，详情请查看服务器日志"
+            )
     except Exception as e:
         print(f"添加索引时出错: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
