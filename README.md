@@ -10,7 +10,7 @@ Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动�
 - 标注转结构化笔记
 - 笔记导出与外部同步
 
-核心架构：某种行为(入库/打开/关闭) -> zotero-actions触发脚本 -> 访问python后台/调用zotero-better-notes模板/调用LLM API等 -> 写回笔记
+核心架构：某种行为(入库/打开/关闭) -> start_script.js 事件监控 -> 路由执行对应脚本 -> 访问python后台/调用zotero-better-notes模板/调用LLM API等 -> 写回笔记
 
 本库适合：期望自己动手搭建灵活的zotero工作流的用户。
 
@@ -32,15 +32,24 @@ Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动�
   - 自动：根据标注生成或更新结构化笔记
   - 自动：导出笔记用于外部同步
 
+## 事件路由总览
+
+![事件路由总览](docs/event-routing.svg)
+
+> **实时生效**：`config.json` 和各个行为脚本每次触发时实时读取，修改后无需重新打包 XPI 或重启 Zotero。
+
 ## 环境与插件
 
 必需组件：
 
 - Zotero
-- [zotero-actions-tags](https://github.com/windingwind/zotero-actions-tags)
 - [zotero-better-notes](https://github.com/windingwind/zotero-better-notes) 
 - Python 3.10+
-- `pip install .` 安装各种依赖
+- `pip install .` 安装各种依赖（含 Python 依赖）
+- 如需安装 Zotero 插件：需 `zip` 命令（通常系统自带）
+
+> **不再依赖 zotero-actions-tags。** 本项目的 `start_script.js` 已内置事件监控能力，直接监听 Zotero 的 item/tab 事件并路由执行对应脚本。
+> 可通过安装 `zotero-ai-flow.xpi` 插件实现 Zotero 启动时自动加载。
 
 ## 快速开始
 
@@ -64,10 +73,10 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 ```
 可以写到bash_profile中，开机自启。
 
-3. 在 Zotero 插件中配置脚本与模板：
+3. 加载启动脚本与模板：
 
-- 在 actions-tags 中加载动作脚本 ./zotero_actions/ 下的脚本
-![actions-tags-config](docs/img-actions-tags-config.png) 
+- 在 Zotero 中通过「工具 → 开发者 → Run JavaScript」加载 `zotero_actions/start_script.js`
+- 该脚本会注册事件监听器，在 Zotero 会话期间持续生效 
 
 - 在 better-notes 中加载笔记模板 ./zotero_note_templates/ 下的模板
 
@@ -102,7 +111,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 相关文件：
 
 - 模板 zotero_note_templates/zotero_note_template.js
-- 行为脚本 zotero_actions/zotero_autoupdate_note.js
+- 行为脚本 zotero_actions/zotero_autoupdate_note.js（通过 start_script.js 在 ui_startup / item_close 时自动触发）
 
 该功能在 Zotero 原生标注转笔记能力上增加了层级结构支持。
 当前方案通过颜色标注标记标题层级，从而生成结构化笔记。
@@ -114,7 +123,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 
 相关文件：
 
-- zotero_actions/zotero_pdf_summary.js
+- zotero_actions/zotero_pdf_summary.js（通过 start_script.js 在 item_open 时自动触发）
 
 流程：
 
@@ -162,6 +171,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 | 根目录 | paper_summary.py | 论文摘要生成（map-reduce） |
 | 根目录 | build_zotero_es_index.py | 构建 Elasticsearch 索引 |
 | 根目录 | run_zotero_qa.py | 运行问答系统测试入口 |
+| zotero_actions/ | start_script.js | **事件监控入口**：监听 Zotero 事件并路由执行对应脚本（替代 zotero-actions-tags） |
 | zotero_actions/ | zotero_pdf_summary.js | AI 论文摘要（获取 PDF → 解析 → LLM → 写回笔记） |
 | zotero_actions/ | zotero_autoupdate_note.js | 标注转结构化笔记（颜色层级、自动更新） |
 | zotero_actions/ | zotero_qa.js | 语义问答（RAG 检索 + LLM 回答） |
@@ -178,3 +188,6 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 | zotero_qa/ | aliyun_embedding.py | 阿里云 Embedding 接口 |
 | zotero_qa/ | document_splitter.py | 文档分片工具 |
 | zotero_qa/ | zotero_search.py | Zotero 库检索接口 |
+| zotero_plugin/ | install.rdf + bootstrap.js | Zotero 插件（自动加载 start_script.js） |
+| scripts/ | build_xpi.sh | XPI 打包脚本 |
+| scripts/ | generate_mermaid_svg.py | Mermaid → SVG/PNG 图片生成 |

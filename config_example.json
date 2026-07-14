@@ -70,5 +70,27 @@
                 "^\\s*(?:Conclusion|CONCLUSION)\\s*$"
             ]
         }
+    },
+    "zotero_events": {
+        "_comment": "start_script.js 事件触发配置。脚本路径相对于 zotero_actions/ 目录。",
+        "script_dir": "/home/xiahong/code/zotero-ai-flow/zotero_actions",
+        "debounce_ms": {
+            "ui_startup": 0,
+            "item_open": 2000,
+            "item_close": 1000,
+            "item_add": 5000
+        },
+        "triggers": {
+            "ui_startup": [
+                "zotero_autoupdate_note.js"
+            ],
+            "item_open": [
+                "zotero_pdf_summary.js"
+            ],
+            "item_close": [],
+            "item_add": [
+                "zotero_rss.js"
+            ]
+        }
     }
 }

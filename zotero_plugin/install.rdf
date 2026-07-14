@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+  <Description about="urn:mozilla:install-manifest">
+    <em:id>zotero-ai-flow@xiahong.me</em:id>
+    <em:name>Zotero AI Flow</em:name>
+    <em:version>1.0</em:version>
+    <em:type>2</em:type>
+    <em:creator>xiahong</em:creator>
+    <em:homepageURL>https://github.com/hxsnow10/zotero-ai-summary</em:homepageURL>
+    <em:description>AI driven workflow automation for Zotero.</em:description>
+    <em:targetApplication>
+      <Description>
+        <em:id>zotero@chnm.gmu.edu</em:id>
+        <em:minVersion>6.0</em:minVersion>
+        <em:maxVersion>99.*</em:maxVersion>
+      </Description>
+    </em:targetApplication>
+  </Description>
+</RDF>
