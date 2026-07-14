@@ -69,12 +69,14 @@ bash scripts/build_xpi.sh
 ```
 
 打包完成后将 `zotero-ai-flow.xpi` 拖入 Zotero → 工具 → 插件 → 齿轮 → Install Add-on From File。
-安装后打开 **编辑 → 设置 → 插件设置 → Zotero AI Flow**，确认/修改以下路径：
+安装后插件会自动将内置脚本和 `config.json` 解压到 Zotero 配置目录下的
+`zotero-ai-flow/` 文件夹，路径偏好自动配置完成。
+如需手动修改，打开 **编辑 → 设置 → 插件设置 → Zotero AI Flow**：
 
 | 偏好项 | 说明 |
 |--------|------|
-| `script_dir` | start_script.js 和各个行为脚本所在目录 |
-| `config_path` | config.json 的绝对路径 |
+| `script_dir` | 行为脚本所在目录（默认自动解压目录） |
+| `config_path` | config.json 绝对路径（默认自动解压目录/config.json） |
 | `debug` | 是否在 Error Console 输出调试日志 |
 
 修改后即时生效，无需重启或重新打包 XPI。
@@ -105,7 +107,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 - zotero_events.triggers：各事件 (ui_startup / item_open / item_close / item_add) 对应的脚本列表
 - zotero_events.debounce_ms：各事件去抖间隔（毫秒）
 - zotero_events.manual_triggers.menus：右键菜单项，每项包含 label（菜单文字）和 script（脚本文件名）
-- zotero_events.script_dir：脚本目录 fallback（优先从插件偏好读取，见下方）
+- zotero_events.script_dir：脚本目录 fallback（优先从插件偏好读取；安装插件后自动指向 Zotero 配置目录）
 - summary.chunkSize：map-reduce 分片大小
 - summary.chunkOverlap：相邻分片重叠长度
 - summary.maxChunk：最大分片数量

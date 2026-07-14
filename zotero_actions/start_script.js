@@ -35,6 +35,7 @@ function getPref(key, fallback) {
 }
 
 // 兜底路径（Zotero Prefs 和 config.json 均未设置时使用）
+// 正常情况下 bootstrap.js 已将路径指向 {Zotero配置目录}/zotero-ai-flow/
 const SCRIPT_DIR_FALLBACK = "/home/xiahong/code/zotero-ai-flow/zotero_actions";
 const CONFIG_PATH_FALLBACK = "/home/xiahong/code/zotero-ai-flow/config.json";
 

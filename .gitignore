@@ -10,3 +10,5 @@ node_modules
 nohup*
 config.json
 package*
+_build/
+zotero-ai-flow.xpi
