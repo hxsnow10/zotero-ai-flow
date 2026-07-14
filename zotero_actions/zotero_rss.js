@@ -286,11 +286,15 @@ function hasAbstractAttachment(item) {
   const attachmentIDs = item.getAttachments();
   if (!attachmentIDs) return false;
 
+  let itemTitle = item.getField("title") || "Untitled";
+  let expectedName = "[RSS-ABSTRACT]" + itemTitle + ".html";
+
   for (let id of attachmentIDs) {
     let att = Zotero.Items.get(id);
     if (!att) continue;
     let attTitle = att.getField("title") || "";
-    if (attTitle.includes("Abstract")) {
+    // 用附件标题是否等于预期的 HTML 文件名来判断
+    if (attTitle === expectedName) {
       return true;
     }
   }
@@ -401,7 +405,7 @@ async function processRssItem(item) {
       parentItemID: item.id,
     });
     if (att) {
-      att.setField("title", title + ".html");
+      att.setField("title", "[RSS-ABSTRACT]" + title + ".html");
       // imported_url 模式允许 Zotero 以网页方式渲染，加载远程图片
       att.attachmentLinkMode = Zotero.Attachments.LINK_MODE_IMPORTED_URL;
       // 设置原始 URL，使 Zotero 以网页上下文打开（否则本地文件会阻止远程图片）
