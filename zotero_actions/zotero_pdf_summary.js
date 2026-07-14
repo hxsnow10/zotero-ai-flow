@@ -164,9 +164,17 @@ async function generateSummary(item) {
 
     let metaBlock = "";
     if (abstractNote) {
-      // 清理 HTML 标签得到纯文本摘要
+      // 清理 HTML 标签和实体得到纯文本摘要
       let cleanAbstract = abstractNote
         .replace(/<[^>]+>/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#x2F;/g, "/")
+        .replace(/&#\d+;/g, " ")
         .replace(/\s+/g, " ")
         .trim();
       metaBlock += "<摘要>\n" + cleanAbstract + "\n</摘要>\n";
