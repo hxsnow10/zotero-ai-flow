@@ -20,6 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import traceback
+from urllib.parse import urlparse
 
 # 导入新增接口需要的模块
 from zotero_qa.qa_agents import ZoteroQASystem  # type: ignore
@@ -527,10 +528,18 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler(sys.stdout)],  # 将日志输出到 stdout
     )
 
+    # 从 config 的 server.url 解析默认 host/port
+    _config_path = os.environ.get("CONFIG_PATH", "config.json")
+    _server_cfg = load_config(_config_path).get("server", {})
+    _server_url = _server_cfg.get("url", "http://127.0.0.1:13210")
+    _parsed = urlparse(_server_url)
+    _default_host = _parsed.hostname or "127.0.0.1"
+    _default_port = _parsed.port or 13210
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--unix-socket", help="Unix socket path")
-    parser.add_argument("--host", default="127.0.0.1", help="Bind host")
-    parser.add_argument("--port", type=int, default=13210, help="Bind port")
+    parser.add_argument("--unix-socket", default="", help="Unix socket path")
+    parser.add_argument("--host", default=_default_host, help="Bind host")
+    parser.add_argument("--port", type=int, default=_default_port, help="Bind port")
     args = parser.parse_args()
 
     if args.unix_socket:
