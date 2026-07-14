@@ -149,6 +149,33 @@ async function generateSummary(item) {
     let title = item.getField("title");
     let link = item.getField("url") || "";
 
+    // 提取条目元信息（摘要、作者、期刊、日期等），构建 XML 标签块
+    let abstractNote = item.getField("abstractNote") || "";
+    let publicationTitle = item.getField("publicationTitle") || "";
+    let date = item.getField("date") || "";
+    let creators = item.getCreators ? item.getCreators() : null;
+    let authorsStr = "";
+    if (creators && creators.length > 0) {
+      authorsStr = creators
+        .map((c) => (c.firstName || "") + " " + (c.lastName || ""))
+        .join(", ")
+        .trim();
+    }
+
+    let metaBlock = "";
+    if (abstractNote) {
+      // 清理 HTML 标签得到纯文本摘要
+      let cleanAbstract = abstractNote
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      metaBlock += "<摘要>\n" + cleanAbstract + "\n</摘要>\n";
+    }
+    if (authorsStr) metaBlock += "<作者>" + authorsStr + "</作者>\n";
+    if (publicationTitle)
+      metaBlock += "<期刊>" + publicationTitle + "</期刊>\n";
+    if (date) metaBlock += "<日期>" + date + "</日期>\n";
+
     const shortTitle =
       title.length > 50 ? title.substring(0, 50) + "..." : title;
 
@@ -288,7 +315,7 @@ async function generateSummary(item) {
     // Step 2: Generate summary
     itemProgress.setProgress(40);
     itemProgress.setText("Generating summary...");
-    const markdownSummary = await summarizeText(title, splits);
+    const markdownSummary = await summarizeText(title, splits, metaBlock);
     if (!markdownSummary) {
       itemProgress.setText(`summary error`);
       progressWindow.startCloseTimer(5000);
@@ -401,11 +428,18 @@ async function openaiRequest(message) {
   return result.choices[0].message.content;
 }
 
-async function summarizeText(title, splits) {
+async function summarizeText(title, splits, metaBlock) {
+  // 元信息作为独立块传给 prompt（不混入 chunk）
+  let meta = metaBlock ? "论文元信息：\n" + metaBlock : "";
+
   // If only one split, use "stuff" method
   if (splits.length === 1) {
     const response = await openaiRequest(
-      formatString(stuff_prompt, { title: title, text: splits[0].content }),
+      formatString(stuff_prompt, {
+        title: title,
+        text: splits[0].content,
+        meta: meta,
+      }),
     );
     return response;
   }
@@ -417,14 +451,22 @@ async function summarizeText(title, splits) {
   const summaries = await Promise.all(
     splits.map(async (split) => {
       const response = await openaiRequest(
-        formatString(map_prompt, { title: title, text: split.content }),
+        formatString(map_prompt, {
+          title: title,
+          text: split.content,
+          meta: meta,
+        }),
       );
       return response;
     }),
   );
   const combinedSummary = summaries.join("\n\n");
   const response = await openaiRequest(
-    formatString(reduce_prompt, { title: title, text: combinedSummary }),
+    formatString(reduce_prompt, {
+      title: title,
+      text: combinedSummary,
+      meta: meta,
+    }),
   );
   return response;
 }

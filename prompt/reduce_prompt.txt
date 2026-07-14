@@ -1,6 +1,10 @@
 You are given multiple summaries of research paper "{title}", each corresponding to a different chunk of a larger text. 
 Your task is to synthesize these summaries into a single, cohesive overview of the entire paper.
 
+--- START OF META ---
+{meta}
+--- END OF META ---
+
 Individual chunk summaries:
 --- START OF CHUNK SUMMARIES ---
 {text}

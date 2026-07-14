@@ -1,4 +1,9 @@
 Below is an excerpt from a research paper titled "{title}".
+
+--- START OF META ---
+{meta}
+--- END OF META ---
+
 Text excerpt:
 --- START OF PAPER ---
 {text}
