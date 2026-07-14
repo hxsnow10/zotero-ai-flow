@@ -49,38 +49,48 @@ Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动�
 - 如需安装 Zotero 插件：需 `zip` 命令（通常系统自带）
 
 > **不再依赖 zotero-actions-tags。** 本项目的 `start_script.js` 已内置事件监控能力，直接监听 Zotero 的 item/tab 事件并路由执行对应脚本。
-> 可通过安装 `zotero-ai-flow.xpi` 插件实现 Zotero 启动时自动加载。
+> 可通过安装 `zotero-ai-flow.xpi` 插件实现 Zotero 启动时自动加载，脚本目录等路径配置在 Zotero 偏好设置中修改（编辑 → 设置 → 插件设置），无需重新打包。
 
 ## 快速开始
 
-1. 先创建并填写配置文件：
+1. 创建并填写配置文件：
 
 ```bash
 cp config_example.json config.json
 ```
 
-必填字段：
+必填字段：`server.url`、`llm.openaiBaseUrl`、`llm.modelName`、`llm.apiKey`。
+事件触发配置见 `zotero_events` 段，右键菜单配置见 `zotero_events.manual_triggers`。
 
-- server.url
-- llm.openaiBaseUrl
-- llm.modelName
-- llm.apiKey
+2. 安装 Zotero 插件（推荐方式，Zotero 启动自动加载）：
 
-2. 启动解析服务：
+```bash
+bash scripts/build_xpi.sh
+```
+
+打包完成后将 `zotero-ai-flow.xpi` 拖入 Zotero → 工具 → 插件 → 齿轮 → Install Add-on From File。
+安装后打开 **编辑 → 设置 → 插件设置 → Zotero AI Flow**，确认/修改以下路径：
+
+| 偏好项 | 说明 |
+|--------|------|
+| `script_dir` | start_script.js 和各个行为脚本所在目录 |
+| `config_path` | config.json 的绝对路径 |
+| `debug` | 是否在 Error Console 输出调试日志 |
+
+修改后即时生效，无需重启或重新打包 XPI。
+
+> 备用方式：不安装插件，通过「工具 → 开发者 → Run JavaScript」手动加载 `start_script.js`（每次启动 Zotero 后需重新加载）。
+
+3. 启动解析服务：
 
 ```bash
 nohup python parse_server.py > parse_server.log 2>&1 &
 ```
-可以写到bash_profile中，开机自启。
+可写入 bash_profile 实现开机自启。
 
-3. 加载启动脚本与模板：
+4. 在 better-notes 中加载笔记模板（`zotero_note_templates/` 目录下）。
 
-- 在 Zotero 中通过「工具 → 开发者 → Run JavaScript」加载 `zotero_actions/start_script.js`
-- 该脚本会注册事件监听器，在 Zotero 会话期间持续生效 
-
-- 在 better-notes 中加载笔记模板 ./zotero_note_templates/ 下的模板
-
-4. 按你的流程在 Zotero 中触发对应脚本。
+5. 按你的流程在 Zotero 中触发对应脚本。
 
 ## 配置说明
 
@@ -92,6 +102,10 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 - llm.modelName：模型名称
 - llm.apiKey：模型接口密钥
 - llm.temperature：生成温度
+- zotero_events.triggers：各事件 (ui_startup / item_open / item_close / item_add) 对应的脚本列表
+- zotero_events.debounce_ms：各事件去抖间隔（毫秒）
+- zotero_events.manual_triggers.menus：右键菜单项，每项包含 label（菜单文字）和 script（脚本文件名）
+- zotero_events.script_dir：脚本目录 fallback（优先从插件偏好读取，见下方）
 - summary.chunkSize：map-reduce 分片大小
 - summary.chunkOverlap：相邻分片重叠长度
 - summary.maxChunk：最大分片数量
@@ -105,6 +119,18 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 - map_prompt.txt：多分片摘要的 map 阶段
 - reduce_prompt.txt：多分片摘要的 reduce 阶段
 - qa_prompt.txt：问答提示词
+
+### 插件偏好设置（Zotero → 编辑 → 设置 → 插件设置）
+
+以下配置不受 `config.json` 管控，存储在 Zotero 内部偏好系统中（也可在 about:config 中搜索 `extensions.zotero-ai-flow.xiahong.me` 查看）：
+
+| 偏好键 | 说明 | 默认值 |
+|--------|------|--------|
+| `script_dir` | 行为脚本所在目录的绝对路径 | 打包时的路径 |
+| `config_path` | config.json 的绝对路径 | 打包时的路径 |
+| `debug` | 调试日志开关 | true |
+
+路径类配置修改后立即生效，无须重新打包 XPI 或重启 Zotero。
 
 ## 功能：pdf标注转结构化笔记
 
@@ -188,6 +214,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 | zotero_qa/ | aliyun_embedding.py | 阿里云 Embedding 接口 |
 | zotero_qa/ | document_splitter.py | 文档分片工具 |
 | zotero_qa/ | zotero_search.py | Zotero 库检索接口 |
-| zotero_plugin/ | install.rdf + bootstrap.js | Zotero 插件（自动加载 start_script.js） |
+| zotero_plugin/ | install.rdf + bootstrap.js | Zotero 插件（启动时自动加载 start_script.js） |
+| zotero_plugin/ | defaults/preferences/zotero-ai-flow.js | 插件默认偏好值（script_dir / config_path / debug） |
 | scripts/ | build_xpi.sh | XPI 打包脚本 |
 | scripts/ | generate_mermaid_svg.py | Mermaid → SVG/PNG 图片生成 |

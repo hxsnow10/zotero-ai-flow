@@ -27,7 +27,7 @@ echo -e "${GREEN}============================================${NC}"
 echo ""
 
 # 检查必要文件
-REQUIRED_FILES=("install.rdf" "bootstrap.js")
+REQUIRED_FILES=("install.rdf" "bootstrap.js" "defaults/preferences/zotero-ai-flow.js")
 for f in "${REQUIRED_FILES[@]}"; do
   if [ ! -f "$PLUGIN_DIR/$f" ]; then
     echo -e "${RED}[ERROR] 缺少文件: $PLUGIN_DIR/$f${NC}"

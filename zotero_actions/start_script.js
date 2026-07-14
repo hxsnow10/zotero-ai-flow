@@ -19,11 +19,24 @@
 
 /************* Configurations Start *************/
 
-// 脚本根目录（存放各个行为脚本的目录）
-const SCRIPT_DIR = "/home/xiahong/code/zotero-ai-flow/zotero_actions";
+// Zotero 插件偏好设置前缀（install.rdf 中 em:id 的 @ 替换为 .）
+const PREFS_PREFIX = "extensions.zotero-ai-flow.xiahong.me";
 
-// 配置文件路径（与 parse_server.py 共用 config.json）
-const CONFIG_PATH = "/home/xiahong/code/zotero-ai-flow/config.json";
+/**
+ * 从 Zotero 插件偏好（编辑 → 设置 → 插件设置）读取配置值。
+ * 若偏好未设置则返回 fallback。
+ */
+function getPref(key, fallback) {
+  try {
+    var val = Zotero.Prefs.get(PREFS_PREFIX + "." + key);
+    if (val !== undefined && val !== null && val !== "") return val;
+  } catch (e) {}
+  return fallback;
+}
+
+// 兜底路径（Zotero Prefs 和 config.json 均未设置时使用）
+const SCRIPT_DIR_FALLBACK = "/home/xiahong/code/zotero-ai-flow/zotero_actions";
+const CONFIG_PATH_FALLBACK = "/home/xiahong/code/zotero-ai-flow/config.json";
 
 // 默认触发配置（若 config.json 中无 zotero_events 字段则使用此默认值）
 const DEFAULT_TRIGGER_CONFIG = {
@@ -41,9 +54,6 @@ const DEFAULT_DEBOUNCE_MS = {
   item_add: 5000,
 };
 
-// 是否启用调试日志
-const DEBUG = true;
-
 /************* Configurations End *************/
 
 // 暴露清理函数到全局作用域，供插件 bootstrap.js 的 shutdown() 调用
@@ -54,13 +64,12 @@ var __zaf_notifierIDs;
 // ========== 工具函数 ==========
 
 function log() {
-  if (DEBUG) {
-    var msg = "[zotero-ai-flow]";
-    for (var i = 0; i < arguments.length; i++) {
-      msg += " " + arguments[i];
-    }
-    Zotero.debug(msg);
+  if (!getPref("debug", true)) return;
+  var msg = "[zotero-ai-flow]";
+  for (var i = 0; i < arguments.length; i++) {
+    msg += " " + arguments[i];
   }
+  Zotero.debug(msg);
 }
 
 function warn() {
@@ -74,10 +83,20 @@ function warn() {
 /**
  * 从 config.json 读取触发配置
  */
+function _getConfigPath() {
+  // 优先级：Zotero Prefs → config.json 的 zotero_events.script_dir → fallback
+  var p = getPref("config_path", "");
+  if (p) return p;
+  // fallback: 尝试从 config.json 读，虽然这是鸡生蛋蛋问题（config 路径本身就在 config 里），
+  // 但保留此逻辑以兼容旧版未设置 Prefs 的场景
+  return CONFIG_PATH_FALLBACK;
+}
+
 function loadTriggerConfig() {
   try {
-    if (IOUtils.exists(CONFIG_PATH)) {
-      var raw = Zotero.File.getContents(CONFIG_PATH);
+    var cfgPath = _getConfigPath();
+    if (IOUtils.exists(cfgPath)) {
+      var raw = Zotero.File.getContents(cfgPath);
       var cfg = JSON.parse(raw);
       if (cfg.zotero_events && cfg.zotero_events.triggers) {
         log("已从 config.json 加载 zotero_events 配置");
@@ -94,9 +113,17 @@ function loadTriggerConfig() {
 /**
  * 读取并执行指定脚本文件
  */
-async function runScript(scriptName, context) {
+function _getScriptDir() {
+  // 优先级：Zotero Prefs → config.json zotero_events.script_dir → fallback
+  var d = getPref("script_dir", "");
+  if (d) return d;
   var eventsCfg = loadTriggerConfig();
-  var dir = eventsCfg.script_dir || SCRIPT_DIR;
+  if (eventsCfg.script_dir) return eventsCfg.script_dir;
+  return SCRIPT_DIR_FALLBACK;
+}
+
+async function runScript(scriptName, context) {
+  var dir = _getScriptDir();
   var scriptPath = dir + "/" + scriptName;
 
   if (!(await IOUtils.exists(scriptPath))) {
@@ -412,8 +439,9 @@ async function startup() {
   log("========== Zotero AI Flow 事件监控启动 ==========");
 
   var eventsCfg = loadTriggerConfig();
-  log("脚本目录:", eventsCfg.script_dir || SCRIPT_DIR);
-  log("配置文件:", CONFIG_PATH);
+  log("脚本目录:", _getScriptDir());
+  log("配置文件:", _getConfigPath());
+  log("debug:", getPref("debug", true));
   log(
     "触发配置:",
     JSON.stringify(eventsCfg.triggers || DEFAULT_TRIGGER_CONFIG),

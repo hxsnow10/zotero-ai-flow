@@ -4,14 +4,25 @@
  * 插件生命周期入口。
  * Zotero 启动时自动执行 startup()，加载 start_script.js 进行事件监控。
  * Zotero 关闭时执行 shutdown()，清理 Notifier 注册。
+ *
+ * 脚本所在目录通过 Zotero 偏好设置配置：
+ *   编辑 → 设置 → 插件设置 → Zotero AI Flow → 脚本目录
+ * 也可以在 about:config 中搜索 extensions.zotero-ai-flow.xiahong.me
  */
 
-const SCRIPT_PATH =
-  "/root/autodl-tmp/zotero-ai-flow/zotero_actions/start_script.js";
+const PREFS_PREFIX = "extensions.zotero-ai-flow.xiahong.me";
 
-// install.rdf 打包时写入，不需要实际 filesystem 上的路径
-// 如果安装了插件，脚本文件会从 Zotero 的插件目录加载；
-// 如果是从本地加载，直接使用绝对路径。
+// 兜底路径（Zotero Prefs 未设置时使用）
+const SCRIPT_DIR_FALLBACK = "/root/autodl-tmp/zotero-ai-flow/zotero_actions";
+
+function getScriptDir() {
+  try {
+    var dir = Zotero.Prefs.get(PREFS_PREFIX + ".script_dir");
+    if (dir) return dir;
+  } catch (e) {}
+  Zotero.debug("[zotero-ai-flow] Pref script_dir 未设置，使用兜底路径");
+  return SCRIPT_DIR_FALLBACK;
+}
 
 function install() {}
 
@@ -23,7 +34,7 @@ async function startup({ id, version, resourceURI }) {
     // 方式 1：通过 mozIJSSubScriptLoader 加载本地文件的 runScript
     // 注意：在 Zotero 6 中，resource 协议不一定能直接访问本地绝对路径
     // 所以直接用 Zotero.File.getContents + eval 来执行
-    const fsPath = SCRIPT_PATH.replace("file://", "");
+    const fsPath = getScriptDir() + "/start_script.js";
     const exists = await IOUtils.exists(fsPath);
     if (!exists) {
       Zotero.debug(
