@@ -10,7 +10,7 @@ Zotero AI Workflow 是一套用于 Zotero 文献阅读与笔记管理的自动�
 - 标注转结构化笔记
 - 笔记导出与外部同步
 
-核心架构：某种行为(入库/打开/关闭) -> start_script.js 事件监控 -> 路由执行对应脚本 -> 访问python后台/调用zotero-better-notes模板/调用LLM API等 -> 写回笔记
+核心架构：某种行为(入库/打开/关闭/右键菜单) -> start_script.js 事件监控 -> 路由执行对应脚本 -> 访问python后台/调用zotero-better-notes模板/调用LLM API等 -> 写回笔记
 
 本库适合：期望自己动手搭建灵活的zotero工作流的用户。
 
@@ -171,7 +171,7 @@ nohup python parse_server.py > parse_server.log 2>&1 &
 | 根目录 | paper_summary.py | 论文摘要生成（map-reduce） |
 | 根目录 | build_zotero_es_index.py | 构建 Elasticsearch 索引 |
 | 根目录 | run_zotero_qa.py | 运行问答系统测试入口 |
-| zotero_actions/ | start_script.js | **事件监控入口**：监听 Zotero 事件并路由执行对应脚本（替代 zotero-actions-tags） |
+| zotero_actions/ | start_script.js | **事件监控入口**：监听 Zotero 事件并路由执行对应脚本，支持右键菜单手动触发（替代 zotero-actions-tags） |
 | zotero_actions/ | zotero_pdf_summary.js | AI 论文摘要（获取 PDF → 解析 → LLM → 写回笔记） |
 | zotero_actions/ | zotero_autoupdate_note.js | 标注转结构化笔记（颜色层级、自动更新） |
 | zotero_actions/ | zotero_qa.js | 语义问答（RAG 检索 + LLM 回答） |

@@ -91,6 +91,27 @@
             "item_add": [
                 "zotero_rss.js"
             ]
+        },
+        "manual_triggers": {
+            "_comment": "右键菜单手动触发。右键选中条目后出现「Zotero AI Flow」子菜单，点击菜单项直接执行对应脚本。",
+            "menus": [
+                {
+                    "label": "生成 AI 摘要",
+                    "script": "zotero_pdf_summary.js"
+                },
+                {
+                    "label": "更新标注笔记",
+                    "script": "zotero_autoupdate_note.js"
+                },
+                {
+                    "label": "RSS 摘要转附件",
+                    "script": "zotero_rss.js"
+                },
+                {
+                    "label": "导出笔记",
+                    "script": "zotero_export_note.js"
+                }
+            ]
         }
     }
 }

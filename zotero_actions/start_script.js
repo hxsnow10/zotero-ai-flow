@@ -146,6 +146,14 @@ async function runScript(scriptName, context) {
  * 根据触发事件执行已配置的脚本列表
  */
 async function triggerScripts(eventName, context) {
+  // --- 手动触发（右键菜单）：直接执行指定脚本，不走 triggers 配置 ---
+  if (eventName === "manual" && context.manualScript) {
+    log("右键菜单触发:", context.manualScript);
+    await runScript(context.manualScript, context);
+    return;
+  }
+
+  // --- 原有逻辑：从 triggers 配置查找脚本列表 ---
   var eventsCfg = loadTriggerConfig();
   var triggers = eventsCfg.triggers || DEFAULT_TRIGGER_CONFIG;
   var scripts = triggers[eventName];
@@ -291,6 +299,113 @@ function unregisterNotifiers() {
 
 // 暴露到全局作用域，供插件 shutdown 时调用
 unregisterNotifiers = unregisterNotifiers; // 确保是全局变量
+
+// ========== 右键菜单注册 ==========
+
+/**
+ * 在 Zotero 条目树的右键菜单中注入「Zotero AI Flow」子菜单。
+ * 仅支持 Zotero 7。
+ */
+function registerContextMenu() {
+  var win = Zotero.getMainWindow();
+  if (!win) {
+    warn("registerContextMenu: 无法获取主窗口，重试中...");
+    // Zotero 启动早期可能还没准备好窗口，延迟重试
+    setTimeout(function () {
+      registerContextMenu();
+    }, 3000);
+    return;
+  }
+
+  var doc = win.document;
+
+  var itemMenu = doc.getElementById("zotero-item-menu");
+  if (!itemMenu) {
+    warn("registerContextMenu: 未找到条目右键菜单，延迟重试");
+    setTimeout(function () {
+      registerContextMenu();
+    }, 5000);
+    return;
+  }
+
+  // 防止重复注册
+  var existing = doc.getElementById("zaf-context-menu");
+  if (existing) {
+    existing.parentNode.removeChild(existing);
+  }
+
+  // 创建「Zotero AI Flow」子菜单
+  var submenu = doc.createElement("menu");
+  submenu.setAttribute("label", "Zotero AI Flow");
+  submenu.setAttribute("id", "zaf-context-menu");
+
+  var popup = doc.createElement("menupopup");
+  submenu.appendChild(popup);
+
+  // 监听弹出，动态填充菜单项
+  popup.addEventListener("popupshowing", function () {
+    // 清空旧菜单项
+    while (popup.firstChild) {
+      popup.removeChild(popup.firstChild);
+    }
+
+    // 获取当前选中的条目
+    var selectedItems = win.ZoteroPane.getSelectedItems();
+    var hasItems = selectedItems && selectedItems.length > 0;
+
+    // 从配置中读取手动触发菜单项
+    var eventsCfg = loadTriggerConfig();
+    var menus = [];
+    if (eventsCfg.manual_triggers && eventsCfg.manual_triggers.menus) {
+      menus = eventsCfg.manual_triggers.menus;
+    }
+
+    if (menus.length === 0) {
+      var emptyItem = doc.createElement("menuitem");
+      emptyItem.setAttribute("label", "（未配置 manual_triggers）");
+      emptyItem.setAttribute("disabled", "true");
+      popup.appendChild(emptyItem);
+      return;
+    }
+
+    // 添加分隔线
+    var sep = doc.createElement("menuseparator");
+    popup.appendChild(sep);
+
+    for (var i = 0; i < menus.length; i++) {
+      var menuDef = menus[i];
+      var menuitem = doc.createElement("menuitem");
+      menuitem.setAttribute("label", menuDef.label);
+
+      if (!hasItems) {
+        menuitem.setAttribute("disabled", "true");
+      } else {
+        // 闭包捕获菜单项配置
+        (function (scriptName, label) {
+          menuitem.addEventListener("command", function () {
+            var items = win.ZoteroPane.getSelectedItems();
+            if (items && items.length > 0) {
+              log("右键菜单执行:", label, "(", scriptName, ")");
+              triggerScripts("manual", {
+                item: items[0],
+                items: items,
+                triggerEvent: "manual",
+                manualScript: scriptName,
+              });
+            }
+          });
+        })(menuDef.script, menuDef.label);
+      }
+
+      popup.appendChild(menuitem);
+    }
+  });
+
+  // 插入到条目右键菜单末尾
+  itemMenu.appendChild(submenu);
+  log("已注册右键菜单: Zotero AI Flow (" + itemMenu.id + ")");
+}
+
 // ========== 启动入口 ==========
 
 async function startup() {
@@ -307,7 +422,10 @@ async function startup() {
   // 1. 注册事件监听
   registerNotifiers();
 
-  // 2. 触发 ui_startup 事件
+  // 2. 注册右键菜单
+  registerContextMenu();
+
+  // 3. 触发 ui_startup 事件
   triggerWithDebounce("ui_startup", { triggerEvent: "ui_startup" });
 
   log("========== 事件监控就绪 ==========");

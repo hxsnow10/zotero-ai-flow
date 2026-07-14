@@ -4,6 +4,7 @@ flowchart TD
     end
 
     B --> C["registerNotifiers()<br/>注册 Zotero.Notifier 监听"]
+    B --> C2["registerContextMenu()<br/>注入右键子菜单"]
 
     C --> T1["tab add"]
     C --> T2["tab close"]
@@ -15,10 +16,15 @@ flowchart TD
     T3 -->|"item_add"| D3["triggerWithDebounce"]
     T4 -->|"ui_startup"| D4["triggerWithDebounce"]
 
+    C2 --> T5["条目右键<br/>popupshowing"]
+    T5 -->|"用户点击菜单项"| D5["triggerScripts('manual')"]
+
     D1 --> E["loadTriggerConfig()<br/>读取 config.json zotero_events.triggers"]
     D2 --> E
     D3 --> E
     D4 --> E
+
+    D5 -->|"manual: 不走 triggers<br/>直接执行指定脚本"| F
 
     E --> F["runScript()<br/>eval 执行目标脚本<br/>注入 item / items / triggerEvent"]
 
@@ -26,6 +32,7 @@ flowchart TD
     F -->|"item_add"| S2["zotero_rss.js"]
     F -->|"ui_startup"| S3["zotero_autoupdate_note.js"]
     F -->|"item_close<br/>（可配置）"| S4["（自定义脚本）"]
+    F -->|"manual<br/>（右键菜单）"| S5["任意配置脚本<br/>zotero_export_note.js 等"]
 
     S1 --> G1["parse_server.py<br/>PDF 解析 + 分片"]
     S1 --> G2["LLM API<br/>stuff / map-reduce 摘要"]
@@ -40,5 +47,7 @@ flowchart TD
     style A fill:#4a9,stroke:#333,color:#fff
     style B fill:#26a,stroke:#333,color:#fff
     style C fill:#26a,stroke:#333,color:#fff
+    style C2 fill:#26a,stroke:#333,color:#fff
     style E fill:#a62,stroke:#333,color:#fff
     style F fill:#a62,stroke:#333,color:#fff
+    style D5 fill:#c7a,stroke:#333,color:#fff
