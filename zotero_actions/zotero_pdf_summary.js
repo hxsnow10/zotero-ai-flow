@@ -4,12 +4,22 @@
  * @usage https://github.com/cs-qyzhang/zotero-ai-summary
  */
 
-/************* Configurations Start *************/
-// TODO: 支持html
+// ============================================================================
+// 总体逻辑：
+// 1. 读取配置 & 加载 LLM prompt 模板（stuff / map / reduce）
+// 2. 获取选中条目 → 优先查找 PDF 附件，找不到则回退到 HTML 网页快照
+// 3. 读取附件内容：
+//    - PDF  → 调用服务端 /parse_pdf 解析为文本分块（splits）
+//    - HTML → 本地提取纯文本，按 chunkSize/chunkOverlap 手动分块
+// 4. LLM 摘要：单分块用 "stuff" 模式，多分块用 "map-reduce" 模式
+// 5. 摘要 markdown → 服务端 /md_to_html 转 HTML → 写入 Zotero 笔记
+// ============================================================================
+
 // TODO：生成摘要的时候，最好还能保留这个对话环境，方便后续的交互问答  pdfask
 // 每次打开文本都生成一次吗？ 这还是得手动触发吧。有需要问答的时候，触发一次上传，然后交互即可。
 // 记录时间
 // 记得提取source_code等关键字段
+/************* Configurations Start *************/
 
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
@@ -63,6 +73,53 @@ function check_attachment(attachment) {
       attachment.attachmentLinkMode ===
         Zotero.Attachments.LINK_MODE_LINKED_FILE)
   );
+}
+
+/**
+ * 从 item 的所有附件中查找 PDF 附件
+ */
+function findPdfAttachment(item) {
+  const attachmentIDs = item.getAttachments();
+  for (const id of attachmentIDs) {
+    const attachment = Zotero.Items.get(id);
+    if (attachment.attachmentContentType === "application/pdf") {
+      return attachment;
+    }
+  }
+  return null;
+}
+
+/**
+ * 从 item 的所有附件中查找 HTML / 网页快照附件
+ */
+function findHtmlAttachment(item) {
+  const attachmentIDs = item.getAttachments();
+  for (const id of attachmentIDs) {
+    const attachment = Zotero.Items.get(id);
+    const ct = attachment.attachmentContentType || "";
+    if (ct.startsWith("text/html") || ct === "application/xhtml+xml") {
+      return attachment;
+    }
+  }
+  return null;
+}
+
+/**
+ * 从 HTML 字符串中提取纯文本
+ */
+function extractTextFromHtml(html) {
+  let text = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#\d+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text;
 }
 
 if (!item) return;
@@ -119,70 +176,113 @@ async function generateSummary(item) {
       return;
     }
 
-    // Get PDF attachment
-    let pdfAttachment = await item.getBestAttachment();
-    if (!check_attachment(pdfAttachment)) {
-      let i = 0;
-      while (i < config.server.timeout && !check_attachment(pdfAttachment)) {
-        await new Promise((r) => setTimeout(r, 1000));
-        pdfAttachment = await item.getBestAttachment();
-        i++;
+    // ===== 获取附件：优先 PDF，其次 HTML =====
+    let sourceType = "pdf";
+    let attachment = null;
+
+    // 第一步：尝试获取 PDF
+    attachment = await item.getBestAttachment();
+    if (
+      !check_attachment(attachment) ||
+      attachment.attachmentContentType !== "application/pdf"
+    ) {
+      attachment = findPdfAttachment(item);
+    }
+
+    if (!attachment || !check_attachment(attachment)) {
+      // 第二步：回退到 HTML
+      attachment = findHtmlAttachment(item);
+      if (attachment && check_attachment(attachment)) {
+        sourceType = "html";
+      } else {
+        progressWindow.startCloseTimer();
+        return "No PDF or HTML attachment found for the selected item.";
       }
     }
-    if (!pdfAttachment) {
-      progressWindow.startCloseTimer();
-      return "No PDF attachment found for the selected item.";
-    }
 
-    itemProgress.setText("Retrieving PDF...");
+    itemProgress.setText(
+      sourceType === "pdf" ? "Retrieving PDF..." : "Retrieving HTML...",
+    );
     progressWindow.show();
 
-    let pdfPath = await pdfAttachment.getFilePath();
-    const basePath = pdfPath.replace(/^.*[\\/]/, "");
+    let filePath = await attachment.getFilePath();
+    const basePath = filePath.replace(/^.*[\\/]/, "");
 
-    // Read PDF
-    let fileData = await IOUtils.read(pdfPath);
+    // 读取文件
+    let fileData = await IOUtils.read(filePath);
     if (fileData instanceof ArrayBuffer) {
       fileData = new Uint8Array(fileData);
     }
 
-    itemProgress.setProgress(20);
-    itemProgress.setText("Parsing PDF...");
+    let splits;
 
-    // Step 1: Parse PDF
-    const formData = new window.FormData();
-    formData.append("title", title);
-    formData.append("link", link);
-    formData.append("chunk_size", config.summary.chunkSize);
-    formData.append("chunk_overlap", config.summary.chunkOverlap);
-    formData.append(
-      "pdf",
-      new Blob([fileData], { type: "application/pdf" }),
-      basePath,
-    );
+    if (sourceType === "pdf") {
+      // === PDF 路径：调用 /parse_pdf 解析 ===
+      itemProgress.setProgress(20);
+      itemProgress.setText("Parsing PDF...");
 
-    const parseResponse = await fetch(`${config.server.url}/parse_pdf`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!parseResponse.ok) {
-      let message = undefined;
+      const formData = new window.FormData();
+      formData.append("title", title);
+      formData.append("link", link);
+      formData.append("chunk_size", config.summary.chunkSize);
+      formData.append("chunk_overlap", config.summary.chunkOverlap);
+      formData.append(
+        "pdf",
+        new Blob([fileData], { type: "application/pdf" }),
+        basePath,
+      );
+
+      const parseResponse = await fetch(`${config.server.url}/parse_pdf`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!parseResponse.ok) {
+        let message = undefined;
+        try {
+          const data = await parseResponse.json();
+          message = data.detail || data.error?.message;
+        } catch (error) {}
+        throw new Error(
+          `${config.server.url} HTTP Error: ${parseResponse.status} ${parseResponse.statusText}${message ? ` - ${message}` : ""}`,
+        );
+      }
+      let parseResult;
       try {
-        const data = await parseResponse.json();
-        message = data.detail || data.error?.message;
-      } catch (error) {}
-      throw new Error(
-        `${config.server.url} HTTP Error: ${parseResponse.status} ${parseResponse.statusText}${message ? ` - ${message}` : ""}`,
-      );
-    }
-    let parseResult, splits;
-    try {
-      parseResult = await parseResponse.json();
-      splits = parseResult.splits;
-    } catch (error) {
-      throw new Error(
-        `Error when parsing json of ${config.server.url}/parse_pdf: ${error.message}`,
-      );
+        parseResult = await parseResponse.json();
+        splits = parseResult.splits;
+      } catch (error) {
+        throw new Error(
+          `Error when parsing json of ${config.server.url}/parse_pdf: ${error.message}`,
+        );
+      }
+    } else {
+      // === HTML 路径：直接提取文本，手动分块 ===
+      itemProgress.setProgress(20);
+      itemProgress.setText("Extracting text from HTML...");
+
+      const decoder = new TextDecoder("utf-8");
+      const htmlString = decoder.decode(fileData);
+      const plainText = extractTextFromHtml(htmlString);
+
+      if (!plainText || plainText.length < 50) {
+        throw new Error("HTML content is too short or empty after extraction.");
+      }
+
+      const chunkSize = config.summary.chunkSize || 4000;
+      const chunkOverlap = config.summary.chunkOverlap || 200;
+      splits = [];
+      let start = 0;
+      let chunkIndex = 0;
+      while (start < plainText.length) {
+        const end = Math.min(start + chunkSize, plainText.length);
+        splits.push({
+          content: plainText.slice(start, end),
+          metadata: { chunk: chunkIndex, source_type: "html" },
+        });
+        if (end >= plainText.length) break;
+        start = end - chunkOverlap;
+        chunkIndex++;
+      }
     }
 
     // Step 2: Generate summary
