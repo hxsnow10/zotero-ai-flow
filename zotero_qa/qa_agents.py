@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)
 
 # 处理相对导入
-from search_tools import search_arxiv, search_elasticsearch, search_zotero
+from .search_tools import search_arxiv, search_elasticsearch, search_zotero
 
 # 定义搜索工具列表
 tools = [

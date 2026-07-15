@@ -25,6 +25,8 @@
         ]
     },
     "qa": {
+        "qa_enabled": true,
+        "es_enabled": true,
         "saveCollectionKey": "IV5MQ9HV",
         "llm": {
             "model": "",

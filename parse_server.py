@@ -22,11 +22,8 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import traceback
 from urllib.parse import urlparse
 
-# 导入新增接口需要的模块
-from zotero_qa.qa_agents import ZoteroQASystem  # type: ignore
-from build_zotero_es_index import insert_zotero_item, load_config
-from zotero_qa.document_splitter import DocumentSplitter
-from zotero_qa.search_es import ElasticsearchClient
+# 导入新增接口需要的模块（QA/ES 相关模块已改为条件导入，见 init_services）
+from build_zotero_es_index import load_config
 from pyzotero import zotero
 
 logging.basicConfig(
@@ -148,23 +145,32 @@ config = None
 
 
 def init_services(config_path="config.json"):
-    """初始化服务组件"""
+    """初始化服务组件（根据配置开关按需加载 QA / ES 模块）"""
     global qa_system, es_client, document_splitter, zot, config
 
     # 加载配置
     config = load_config(config_path)
 
-    # 初始化QA系统
-    if qa_system is None:
+    # 读取功能开关
+    qa_config = config.get("qa", {})
+    qa_enabled = qa_config.get("qa_enabled", True)
+    es_enabled = qa_config.get("es_enabled", True)
+
+    # 初始化QA系统（仅在开关打开时导入并初始化）
+    if qa_enabled and qa_system is None:
         try:
+            from zotero_qa.qa_agents import ZoteroQASystem  # type: ignore
+
             qa_system = ZoteroQASystem(config_path=config_path)
             logger.info("QA系统初始化成功")
         except Exception as e:
             logger.error(f"QA系统初始化失败: {str(e)}")
 
-    # 初始化ES客户端
-    if es_client is None:
+    # 初始化ES客户端和文档切片器（仅在开关打开时导入并初始化）
+    if es_enabled and es_client is None:
         try:
+            from zotero_qa.search_es import ElasticsearchClient
+
             es_config = config.get("elasticsearch", {})
             vector_dim = config.get("zotero_indexing", {}).get(
                 "vector_dim", es_config.get("vector_dim", 1024)
@@ -232,15 +238,17 @@ def init_services(config_path="config.json"):
         except Exception as e:
             logger.error(f"ES客户端初始化失败: {str(e)}")
 
-    # 初始化文档切片器
-    if document_splitter is None:
+    # 初始化文档切片器（ES 相关）
+    if es_enabled and document_splitter is None:
         try:
+            from zotero_qa.document_splitter import DocumentSplitter
+
             document_splitter = DocumentSplitter()
             logger.info("文档切片器初始化成功")
         except Exception as e:
             logger.error(f"文档切片器初始化失败: {str(e)}")
 
-    # 初始化Zotero客户端
+    # 初始化Zotero客户端（始终初始化，QA 和 ES 都可能用到）
     if zot is None:
         try:
             zotero_config = config.get("zotero", {})
@@ -432,6 +440,14 @@ async def question_answer(
         f'------------- /question_answer ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
     )
     try:
+        # 检查 QA 功能开关
+        qa_enabled = config.get("qa", {}).get("qa_enabled", True) if config else True
+        if not qa_enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="QA功能已关闭（config.json 中 qa.qa_enabled=false）",
+            )
+
         # 确保QA系统已初始化
         if qa_system is None:
             init_services()
@@ -459,6 +475,17 @@ async def add_index(
         f'------------- /add_index ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
     )
     try:
+        # 检查 ES 功能开关
+        es_enabled = config.get("qa", {}).get("es_enabled", True) if config else True
+        if not es_enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="ES功能已关闭（config.json 中 qa.es_enabled=false）",
+            )
+
+        # 条件导入 insert_zotero_item
+        from build_zotero_es_index import insert_zotero_item
+
         # 确保服务已初始化
         if es_client is None or document_splitter is None or zot is None:
             init_services()
