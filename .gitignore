@@ -8,5 +8,5 @@ poetry.lock
 .vscode
 node_modules
 nohup*
-config.json
+config_secret.json
 package*

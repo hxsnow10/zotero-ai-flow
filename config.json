@@ -21,7 +21,10 @@
             "magazineArticle",
             "conferencePaper",
             "manuscript",
-            "thesis"
+            "thesis",
+            "webpage",
+            "blogPost",
+            "forumPost"
         ]
     },
     "qa": {
@@ -42,7 +45,7 @@
         "vector_dim": 1024
     },
     "zotero": {
-        "api_key": "Kl7Puj6BKl85FKlnnyp8vh8o",
+        "api_key": "your_zotero_api_key_here",
         "library_id": "3160691",
         "library_type": "user"
     },

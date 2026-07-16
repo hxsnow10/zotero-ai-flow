@@ -23,23 +23,12 @@
 
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
-async function load_file(pname) {
-  try {
-    let path = dirname + "/" + pname;
-    // 使用 IOUtils 读取文件内容
-    let content = await IOUtils.read(path);
-
-    // 使用 TextDecoder 处理 Unicode 字符
-    const decoder = new TextDecoder("utf-8");
-    return decoder.decode(content);
-  } catch (error) {
-    throw new Error(`读取文件失败 ${pname}: ${error.message}`);
-  }
-}
-
-let fileContent = await load_file("config.json");
-
-const config = JSON.parse(fileContent);
+// Load shared config (merges secrets.json automatically)
+let _code = new TextDecoder("utf-8").decode(
+  await IOUtils.read(dirname + "/load_config.js"),
+);
+let _init = new Function(_code + "; return initConfig;")();
+const { config, load_file } = await _init(dirname);
 
 // load prompt
 function load_prompt(pname) {
@@ -141,9 +130,28 @@ async function generateSummary(item) {
   itemProgress = new progressWindow.ItemProgress();
   itemProgress.setItemTypeAndIcon("note");
   try {
+    // 如果选中的是附件（如 HTML/PDF 文件），自动回溯到父条目
     if (!item.isRegularItem() || !item.isTopLevelItem()) {
-      progressWindow.startCloseTimer();
-      return;
+      if (item.parentID) {
+        const parentItem = Zotero.Items.get(item.parentID);
+        if (parentItem && parentItem.isRegularItem()) {
+          item = parentItem;
+        } else {
+          itemProgress.setText("Selected item is not a valid top-level entry.");
+          progressWindow.addDescription(
+            "请选中文献条目本身（而非附件文件）再触发 summary。",
+          );
+          progressWindow.startCloseTimer(8000);
+          return;
+        }
+      } else {
+        itemProgress.setText("Selected item is not a valid top-level entry.");
+        progressWindow.addDescription(
+          "请选中文献条目本身（而非附件文件）再触发 summary。",
+        );
+        progressWindow.startCloseTimer(8000);
+        return;
+      }
     }
 
     let title = item.getField("title");
@@ -189,7 +197,11 @@ async function generateSummary(item) {
 
     let itemType = item.itemType;
     if (!config.summary.support_item_types.includes(itemType)) {
-      progressWindow.startCloseTimer();
+      itemProgress.setText(`Unsupported item type: ${itemType}`);
+      progressWindow.addDescription(
+        `当前条目类型 "${itemType}" 不在支持列表中。支持的类型：${config.summary.support_item_types.join(", ")}`,
+      );
+      progressWindow.startCloseTimer(8000);
       return `No support itemType=${itemType}.`;
     }
 

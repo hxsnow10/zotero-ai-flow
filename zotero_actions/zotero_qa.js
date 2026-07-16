@@ -38,22 +38,12 @@ if (item != null) return;
 /************* Configurations Start *************/
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
-async function load_file(pname) {
-  try {
-    let path = dirname + "/" + pname;
-    // 使用 IOUtils 读取文件内容
-    let content = await IOUtils.read(path);
-
-    // 使用 TextDecoder 处理 Unicode 字符
-    const decoder = new TextDecoder("utf-8");
-    return decoder.decode(content);
-  } catch (error) {
-    throw new Error(`读取文件失败 ${pname}: ${error.message}`);
-  }
-}
-
-let fileContent = await load_file("config.json");
-const config = JSON.parse(fileContent);
+// Load shared config (merges secrets.json automatically)
+let _code = new TextDecoder("utf-8").decode(
+  await IOUtils.read(dirname + "/load_config.js"),
+);
+let _init = new Function(_code + "; return initConfig;")();
+const { config, load_file } = await _init(dirname);
 
 let window = require("window");
 // 确保全局变量的声明
