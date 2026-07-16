@@ -164,7 +164,7 @@ def init_services(config_path="config.json"):
             qa_system = ZoteroQASystem(config_path=config_path)
             logger.info("QA系统初始化成功")
         except Exception as e:
-            logger.error(f"QA系统初始化失败: {str(e)}")
+            logger.warning(f"QA系统初始化失败: {str(e)}")
 
     # 初始化ES客户端和文档切片器（仅在开关打开时导入并初始化）
     if es_enabled and es_client is None:
@@ -236,7 +236,7 @@ def init_services(config_path="config.json"):
             )
             logger.info("ES客户端初始化成功")
         except Exception as e:
-            logger.error(f"ES客户端初始化失败: {str(e)}")
+            logger.warning(f"ES客户端初始化失败: {str(e)}")
 
     # 初始化文档切片器（ES 相关）
     if es_enabled and document_splitter is None:
@@ -246,7 +246,7 @@ def init_services(config_path="config.json"):
             document_splitter = DocumentSplitter()
             logger.info("文档切片器初始化成功")
         except Exception as e:
-            logger.error(f"文档切片器初始化失败: {str(e)}")
+            logger.warning(f"文档切片器初始化失败: {str(e)}")
 
     # 初始化Zotero客户端（始终初始化，QA 和 ES 都可能用到）
     if zot is None:
@@ -259,7 +259,7 @@ def init_services(config_path="config.json"):
             )
             logger.info("Zotero客户端初始化成功")
         except Exception as e:
-            logger.error(f"Zotero客户端初始化失败: {str(e)}")
+            logger.warning(f"Zotero客户端初始化失败: {str(e)}")
 
 
 # 在服务器启动时初始化服务
@@ -474,6 +474,7 @@ async def add_index(
     print(
         f'------------- /add_index ({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) -------------'
     )
+    global config
     try:
         # 检查 ES 功能开关
         es_enabled = config.get("qa", {}).get("es_enabled", True) if config else True
@@ -494,7 +495,6 @@ async def add_index(
                     status_code=500, detail="服务初始化失败，无法添加索引"
                 )
 
-        global config
         config = load_config(config_path)
 
         # 获取切片配置
