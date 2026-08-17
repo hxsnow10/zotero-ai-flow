@@ -3,10 +3,6 @@
 // 笔记的形式：item元信息+{连接-> note（包括自动生成的标注， AI生成的摘要等）}
 
 // key of content, value of file name suffix
-let keyNames = {
-  "[item]标记自动生成的层次笔记模板": "Annotation",
-  "AI Generated Summary": "AI-Summary",
-};
 
 // ==================== 配置读取 ====================
 // 沿用项目约定：从仓库根目录 config.json 读取部署相关配置
@@ -48,23 +44,21 @@ requireConfig([
   "key_names",
   "notewrite_dir",
   "last_save_time_file",
-  "all_dir_name",
-  "new_dir_name",
   "min_length",
   "index_template_path",
-  "ignore_last_save_time",
 ]);
 
 // 笔记类型识别规则
-keyNames = exportConfig.key_names;
+let keyNames = exportConfig.key_names;
 
 let notewrite_dir = exportConfig.notewrite_dir;
 let last_save_time_path =
   notewrite_dir + "/" + exportConfig.last_save_time_file;
 let last_save_time = Zotero.File.getContents(last_save_time_path);
-
 let ignore_last_save_time = exportConfig.ignore_last_save_time;
+
 const min_length = exportConfig.min_length;
+const min_time_gap = exportConfig.min_time_gap; // 默认30秒
 
 function getYesterday() {
   // 获取当前日期
@@ -84,16 +78,8 @@ function getYesterday() {
 }
 // clean this 2 directory
 
-let all_note_dir = notewrite_dir + "/" + exportConfig.all_dir_name;
-let new_note_dir = notewrite_dir + "/" + exportConfig.new_dir_name;
-
 // 主文件：每个 parent 一个 <标题>.md，含 parent 元信息 + 指向该 parent 所有 note 的链接
 // 每次 writeNoteContent 时同步更新该 parent 对应的主文件
-
-//IOUtils.remove(all_note_dir,{recursive: true});
-//IOUtils.remove(new_note_dir);
-IOUtils.makeDirectory(all_note_dir);
-IOUtils.makeDirectory(new_note_dir);
 
 async function getAllNotes() {
   try {
@@ -170,6 +156,13 @@ function renderTemplate(tpl, params) {
 
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getSafeTitle(title, maxLength = 75) {
+  const cleanedTitle = String(title || "untitled")
+    .replace(/[\0\\/:*?"<>|]/g, "")
+    .trim();
+  return (cleanedTitle || "untitled").slice(0, maxLength);
 }
 
 // 获取 parentItem 的作者列表，拼接为 "姓 名, 姓 名, ..." 形式
@@ -259,7 +252,7 @@ async function updateIndexFile(note, note_type, directory, filePath) {
   const parentTitle = note.parentItem
     ? note.parentItem.getField("title")
     : "untitled";
-  const safeTitle = parentTitle.replace(/[\0\/]/g, "");
+  const safeTitle = getSafeTitle(parentTitle);
   const indexPath = `${directory}/${safeTitle}.md`;
   const marker = `<!-- zotero-note:${note.id} -->`;
 
@@ -291,18 +284,25 @@ async function updateIndexFile(note, note_type, directory, filePath) {
   Zotero.debug(`主文件已更新: ${indexPath}`);
 }
 
-async function writeNoteContent(note, note_type, directory) {
+// 通过 Better Notes 导出 Markdown，会触发 Zotero 导出窗口。
+async function writeNoteContentWithExport(note, note_type, directory) {
   try {
+    if (!note || !note.parentItem) {
+      Zotero.debug(`跳过无 parentItem 的 note: ${note ? note.id : "unknown"}`);
+      return null;
+    }
+
     IOUtils.makeDirectory(directory);
     // 获取父项目标题作为文件名的一部分
-    const parentTitle = note.parentItem
-      ? note.parentItem.getField("title")
-      : "untitled";
+    const parentTitle = note.parentItem.getField("title") || "untitled";
     // 清理文件名，移除非法字符
-    const safeTitle = parentTitle.replace(/[\0\/]/g, "");
+    const safeTitle = getSafeTitle(parentTitle);
 
     // 创建文件名：标题_日期_笔记ID
-    const fileName = `${safeTitle}_${note.parentItem.getField("date")}_${note_type}.md`;
+    const parentDate = (note.parentItem.getField("date") || "")
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .trim();
+    const fileName = getSafeTitle(`${safeTitle}_${parentDate}_${note_type}.md`);
     const filePath = `${directory}/${fileName}`;
     const filePathTmp = `${directory}/${fileName}_tmp.md`;
 
@@ -331,70 +331,82 @@ async function writeNoteContent(note, note_type, directory) {
   }
 }
 
+
 // 使用示例
 async function processNotes() {
   let all_export_notes = [];
   let new_export_notes = [];
   let lengths = [];
+  let debugLines = [];
 
-  const notes = await getAllNotes();
-
+  let notes = await getAllNotes();
+  // notes = notes.slice(0, 10);
+  let status = "";
+  let error_num = 0;
   for (const note of notes) {
     try {
-      // 获取笔记内容
+      if (!note.parentItem) {
+        Zotero.debug(`跳过无 parentItem 的 note: ${note.id}`);
+        continue;
+      }
+
       const content = note.getNote();
-      // 获取修改时间
       const dateModified = note.dateModified;
-      // 获取父条目（如果有）
-      const parentItem = note.parentItem;
+      const parentTitle = note.parentItem.getField("title") || "untitled";
+
       let note_type = null;
+      let matchedKey = null;
       for (const key in keyNames) {
         if (content.includes(key.trim())) {
           note_type = keyNames[key];
+          matchedKey = key;
           break;
         }
       }
-      const parentTitle = note.parentItem
-        ? note.parentItem.getField("title")
-        : "untitled";
+
+      const passLength = content.length > min_length;
+      const shouldExport =
+        dateModified > last_save_time ||
+        exportConfig.ignore_last_save_time ||
+        last_save_time == "";
+
+      const debugLine =
+        `[note_export] id=${note.id} title=${parentTitle} matchedKey=${matchedKey ?? "none"} noteType=${note_type ?? "none"} len=${content.length} min=${min_length} passLength=${passLength} dateModified=${dateModified} last_save_time=${last_save_time} shouldExport=${shouldExport}`;
+      // Zotero.debug(debugLine);
+      // debugLines.push(debugLine);
+
       lengths.push([parentTitle, content.length, note_type]);
       if (note_type != null) {
         if (content.length > min_length) {
-          if (ignore_last_save_time) {
-            all_export_notes.push(note);
-            await writeNoteContent(
-              note,
-              note_type,
-              all_note_dir + "/" + parentTitle,
-            );
-          }
-          // await writeNoteContent(note, note_type, all_note_dir+"/"+parentTitle);
-          if (dateModified > last_save_time || ignore_last_save_time) {
-            // 保存目录的逻辑：  可以就保存到一个目录里，然后整体打包导入wolai，导入后这些都移除，
-            // 下次保存就是那些增量的，导入就少了
+          all_export_notes.push(note);
+          if (shouldExport) {
+            Zotero.debug(debugLine);
             new_export_notes.push(note);
-            await writeNoteContent(
+            await writeNoteContentWithExport(
               note,
               note_type,
-              new_note_dir + "/" + parentTitle,
-            );
-            await writeNoteContent(
-              note,
-              note_type,
-              all_note_dir + "/" + parentTitle,
+              notewrite_dir + "/" + getSafeTitle(parentTitle),
             );
           }
         }
       }
     } catch (error) {
-      Zotero.debug(`处理笔记时出错: ${error.message}`);
+      Zotero.debug(`处理笔记时出错: ${error.stack}`);
+      error_num=error_num+1;
+      status = status + `\n处理笔记时出错:  ${error.lineNumber} 行, ${error.message}`;
     }
   }
 
-  return [all_export_notes, new_export_notes];
+  // Zotero.debug(`[note_export] 总调试：${debugLines.join(" | ")}`);
+  return [status, all_export_notes, new_export_notes];
 }
 
 function checkDate() {
+
+  if (last_save_time == null || last_save_time == "") {
+    return true;
+  }
+
   // 获取当前时间
   let now = new Date();
 
@@ -404,11 +416,8 @@ function checkDate() {
   // 计算两个时间之间的差值（以毫秒为单位）
   let difference = Math.abs(targetDate - now);
 
-  // 将差值转换为天数
-  let daysDifference = difference / (1000 * 60 * 60 * 24);
-
-  // 判断是否相差7天以上
-  if (daysDifference >= 7) {
+  // 判断是否相差30秒以上
+  if (difference >= 30) {
     return true;
   } else {
     return false;
@@ -416,19 +425,20 @@ function checkDate() {
 }
 
 async function process() {
-  // 距离上次相差7天以上才会执行
-  // if (!checkDate() && !ignore_last_save_time) {
-  //   return "距离上次保存不足7天，跳过";
-  // }
+  // 距离上次相差30秒以上才会执行
+  if (!checkDate() && !ignore_last_save_time) {
+    return "距离上次保存不足30秒，跳过";
+  }
 
-  let [all_export_notes, new_export_notes] = await processNotes();
-  // result.sort((a,b)=>b[1]-a[1]);
-
-  // 写入文件
   const now = new Date();
+  let [status, all_export_notes, new_export_notes] = await processNotes();
+  // result.sort((a,b)=>b[1]-a[1]);
+  // 写入文件
   const encoder = new TextEncoder();
-  await IOUtils.write(last_save_time_path, encoder.encode(now.toISOString()));
-  return "一共导出 ${all_export_note}个note->all, ${new_export_notes}个note->new";
+  if (status == "") {
+    await IOUtils.write(last_save_time_path, encoder.encode(now.toISOString()));
+  }
+  return `Status = ${status}, 一共 ${all_export_notes.length}个note,  本次更新${new_export_notes.length}个note`;
 }
 
 if (typeof item == "undefined" || item == null) {

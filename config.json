@@ -29,7 +29,7 @@
     },
     "qa": {
         "qa_enabled": true,
-        "es_enabled": true,
+        "es_enabled": false,
         "saveCollectionKey": "IV5MQ9HV",
         "llm": {
             "model": "",
@@ -82,12 +82,11 @@
             "[item]标记自动生成的层次笔记模板": "Annotation",
             "AI Generated Summary": "AI-Summary"
         },
-        "notewrite_dir": "/home/xiahong/文档/zotero_notes",
+        "notewrite_dir": "/home/xiahong/文档/知识库/知识库/zotero文献笔记",
         "last_save_time_file": "last_save_time.txt",
-        "all_dir_name": "all",
-        "new_dir_name": "new",
-        "min_length": 3000,
+        "min_length": 50,
         "ignore_last_save_time": false,
-        "index_template_path": "/home/xiahong/文档/zotero_notes/note_index_template.txt"
+        "index_template_path": "/home/xiahong/文档/知识库/templates/zotero-templates-by-zotero-action.md",
+        "min_time_gap": 30
     }
 }
