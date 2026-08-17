@@ -1,0 +1,12 @@
+# {title}
+
+- **作者**: {authors}
+- **来源**: {source}
+- **日期**: {date}
+- **卷/期/页**: {vol_issue_pages}
+- **DOI**: {doi}
+- **网址**: {url}
+
+> {abstract}
+
+## 笔记
