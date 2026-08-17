@@ -35,19 +35,12 @@ const MAX_CONCURRENT_ITEMS = 3;
 const Zotero = require("Zotero");
 const console = require("console");
 
-async function load_file(pname) {
-  try {
-    let path = dirname + "/" + pname;
-    let content = await IOUtils.read(path);
-    const decoder = new TextDecoder("utf-8");
-    return decoder.decode(content);
-  } catch (error) {
-    throw new Error(`读取文件失败 ${pname}: ${error.message}`);
-  }
-}
-
-let fileContent = await load_file("config.json");
-const config = JSON.parse(fileContent);
+// Load shared config (merges secrets.json automatically)
+let _code = new TextDecoder("utf-8").decode(
+  await IOUtils.read(dirname + "/load_config.js"),
+);
+let _init = new Function(_code + "; return initConfig;")();
+const { config, load_file } = await _init(dirname);
 
 // ==================== 核心函数（取自 zotero_rss.js） ====================
 

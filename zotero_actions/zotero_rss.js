@@ -19,19 +19,12 @@ if (console_test) {
 
 let dirname = "/home/xiahong/code/zotero-ai-summary";
 
-async function load_file(pname) {
-  try {
-    let path = dirname + "/" + pname;
-    let content = await IOUtils.read(path);
-    const decoder = new TextDecoder("utf-8");
-    return decoder.decode(content);
-  } catch (error) {
-    throw new Error(`读取文件失败 ${pname}: ${error.message}`);
-  }
-}
-
-let fileContent = await load_file("config.json");
-const config = JSON.parse(fileContent);
+// Load shared config (merges secrets.json automatically)
+let _code = new TextDecoder("utf-8").decode(
+  await IOUtils.read(dirname + "/load_config.js"),
+);
+let _init = new Function(_code + "; return initConfig;")();
+const { config, load_file } = await _init(dirname);
 
 // 最多同时处理几篇文章，控制对图片 CDN 的并发请求量
 const MAX_CONCURRENT_ITEMS = 3;
