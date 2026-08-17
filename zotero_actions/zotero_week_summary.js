@@ -286,11 +286,17 @@ function formatItemsForPrompt(itemsInfo, totalCount, newCount, readCount) {
 
   // 分组输出
   // 1. 新增且有阅读的
-  const newAndRead = itemsInfo.filter((i) => i.isNewThisWeek && i.wasReadThisWeek);
+  const newAndRead = itemsInfo.filter(
+    (i) => i.isNewThisWeek && i.wasReadThisWeek,
+  );
   // 2. 新增但未阅读的
-  const newUnread = itemsInfo.filter((i) => i.isNewThisWeek && !i.wasReadThisWeek);
+  const newUnread = itemsInfo.filter(
+    (i) => i.isNewThisWeek && !i.wasReadThisWeek,
+  );
   // 3. 旧文献但本周有阅读
-  const oldButRead = itemsInfo.filter((i) => !i.isNewThisWeek && i.wasReadThisWeek);
+  const oldButRead = itemsInfo.filter(
+    (i) => !i.isNewThisWeek && i.wasReadThisWeek,
+  );
 
   if (newAndRead.length > 0) {
     text += `## 🆕📖 本周新增且已阅读（${newAndRead.length} 篇）\n\n`;

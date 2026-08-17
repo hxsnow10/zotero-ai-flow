@@ -28,9 +28,7 @@ async function load_file(pname) {
 function requireConfig(keys) {
   for (const key of keys) {
     if (!(key in exportConfig)) {
-      throw new Error(
-        `config.json 缺少 note_export.${key}，请检查配置后重试`,
-      );
+      throw new Error(`config.json 缺少 note_export.${key}，请检查配置后重试`);
     }
   }
 }
