@@ -73,5 +73,18 @@
                 "^\\s*(?:Conclusion|CONCLUSION)\\s*$"
             ]
         }
+    },
+    "note_export": {
+        "key_names": {
+            "[item]标记自动生成的层次笔记模板": "Annotation",
+            "AI Generated Summary": "AI-Summary"
+        },
+        "notewrite_dir": "/home/xiahong/文档/zotero_notes",
+        "last_save_time_file": "last_save_time.txt",
+        "all_dir_name": "all",
+        "new_dir_name": "new",
+        "min_length": 3000,
+        "ignore_last_save_time": false,
+        "index_template_path": "/home/xiahong/文档/zotero_notes/note_index_template.txt"
     }
 }

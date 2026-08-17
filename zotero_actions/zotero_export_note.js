@@ -1,20 +1,72 @@
 // 每当打开zotero的时候，都会自动运行这个脚本
-// 把所有的笔记都导出来，然后保存到一个目录里，然后导入到wolai里
-// 一共2个目录，一个是所有的笔记，一个是更新过的笔记
-// 需要一个地方，存储与读取上一次保存的时间
-// 筛选出真正看完的笔记，长度大于某个值
+// 把所有的笔记都导出来，然后保存到一个目录里，方便后续跟笔记软件的同步
+// 笔记的形式：item元信息+{连接-> note（包括自动生成的标注， AI生成的摘要等）}
 
 // key of content, value of file name suffix
 let keyNames = {
   "[item]标记自动生成的层次笔记模板": "Annotation",
   "AI Generated Summary": "AI-Summary",
 };
-let notewrite_dir = "/home/xiahong/文档/zotero_notes";
-let last_save_time_path = "/home/xiahong/文档/zotero_notes/last_save_time.txt";
+
+// ==================== 配置读取 ====================
+// 沿用项目约定：从仓库根目录 config.json 读取部署相关配置
+// config.json 缺失或字段缺失时，使用内置默认值兜底
+let dirname = "/home/xiahong/code/zotero-ai-summary";
+
+async function load_file(pname) {
+  try {
+    let path = dirname + "/" + pname;
+    let content = await IOUtils.read(path);
+    const decoder = new TextDecoder("utf-8");
+    return decoder.decode(content);
+  } catch (error) {
+    throw new Error(`读取文件失败 ${pname}: ${error.message}`);
+  }
+}
+
+// 配置必需字段逐一校验，缺失即抛错退出（不做默认值兜底）
+function requireConfig(keys) {
+  for (const key of keys) {
+    if (!(key in exportConfig)) {
+      throw new Error(
+        `config.json 缺少 note_export.${key}，请检查配置后重试`,
+      );
+    }
+  }
+}
+
+let config;
+try {
+  config = JSON.parse(await load_file("config.json"));
+} catch (error) {
+  throw new Error(`读取 config.json 失败: ${error.message}`);
+}
+if (!config.note_export) {
+  throw new Error("config.json 缺少 note_export 配置段");
+}
+const exportConfig = config.note_export;
+
+requireConfig([
+  "key_names",
+  "notewrite_dir",
+  "last_save_time_file",
+  "all_dir_name",
+  "new_dir_name",
+  "min_length",
+  "index_template_path",
+  "ignore_last_save_time",
+]);
+
+// 笔记类型识别规则
+keyNames = exportConfig.key_names;
+
+let notewrite_dir = exportConfig.notewrite_dir;
+let last_save_time_path =
+  notewrite_dir + "/" + exportConfig.last_save_time_file;
 let last_save_time = Zotero.File.getContents(last_save_time_path);
 
-let ignore_last_save_time = false;
-const min_length = 3000;
+let ignore_last_save_time = exportConfig.ignore_last_save_time;
+const min_length = exportConfig.min_length;
 
 function getYesterday() {
   // 获取当前日期
@@ -34,8 +86,11 @@ function getYesterday() {
 }
 // clean this 2 directory
 
-let all_note_dir = "/home/xiahong/文档/zotero_notes/all";
-let new_note_dir = "/home/xiahong/文档/zotero_notes/new";
+let all_note_dir = notewrite_dir + "/" + exportConfig.all_dir_name;
+let new_note_dir = notewrite_dir + "/" + exportConfig.new_dir_name;
+
+// 主文件：每个 parent 一个 <标题>.md，含 parent 元信息 + 指向该 parent 所有 note 的链接
+// 每次 writeNoteContent 时同步更新该 parent 对应的主文件
 
 //IOUtils.remove(all_note_dir,{recursive: true});
 //IOUtils.remove(new_note_dir);
@@ -92,6 +147,152 @@ function isYesterday(dateString) {
   return targetDate >= startOfYesterday && targetDate < endOfYesterday;
 }
 
+// ==================== 主文件（元信息 + 指向 note 的链接） ====================
+
+// 主文件头部模板路径（从 config 读取，必需）
+// 部署时可将仓库 prompt/note_index_template.txt 复制到该路径
+let index_template_path = exportConfig.index_template_path;
+
+let index_template = null;
+
+// 读取模板文件（从 config 指定路径），失败即抛错退出
+function loadIndexTemplate() {
+  if (index_template !== null) return index_template;
+  index_template = Zotero.File.getContents(index_template_path);
+  return index_template;
+}
+
+// 通用模板渲染：{key} 占位符替换，值为空时留空（行保留）
+function renderTemplate(tpl, params) {
+  return tpl.replace(/\{(\w+)\}/g, (m, key) => {
+    const v = params[key];
+    return v === undefined || v === null ? "" : String(v);
+  });
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// 获取 parentItem 的作者列表，拼接为 "姓 名, 姓 名, ..." 形式
+// 超过 MAX_AUTHORS 个作者时截断，末尾追加 "et al."（模拟模板文件的行为）
+const MAX_AUTHORS = 10;
+
+function getCreatorsText(item) {
+  if (!item) return "";
+  const creators = item.getCreators ? item.getCreators() : [];
+  const names = creators
+    .map((c) => {
+      const name =
+        c.fieldMode === 1
+          ? c.lastName || c.name || ""
+          : [c.firstName, c.lastName].filter(Boolean).join(" ");
+      return name.trim();
+    })
+    .filter(Boolean);
+  if (names.length > MAX_AUTHORS) {
+    return names.slice(0, MAX_AUTHORS).join(", ") + ", et al.";
+  }
+  return names.join(", ");
+}
+
+// 获取文献来源文本：期刊/论文集/大学/出版社等，取第一个非空字段
+function getSourceText(item) {
+  if (!item) return "";
+  const fields = [
+    "publicationTitle",
+    "journalAbbreviation",
+    "proceedingsTitle",
+    "university",
+    "publisher",
+    "repository",
+    "institution",
+    "meetingName",
+  ];
+  for (const f of fields) {
+    const v = item.getField(f);
+    if (v) return v;
+  }
+  return "";
+}
+
+// 生成主文件头部：parent 的元信息（标题、作者、日期、网址、摘要），由模板渲染
+function buildIndexHeader(note) {
+  const parent = note.parentItem;
+  const vol = parent ? parent.getField("volume") || "" : "";
+  const iss = parent ? parent.getField("issue") || "" : "";
+  const pp = parent ? parent.getField("pages") || "" : "";
+  const volIssPages = [
+    vol ? `vol. ${vol}` : "",
+    iss ? `no. ${iss}` : "",
+    pp ? `pp. ${pp}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const params = {
+    title: parent ? parent.getField("title") : "untitled",
+    authors: getCreatorsText(parent),
+    year: parent ? parent.getField("year") || "" : "",
+    date: parent ? parent.getField("date") || "" : "",
+    source: getSourceText(parent),
+    vol_issue_pages: volIssPages,
+    doi: parent ? parent.getField("DOI") || "" : "",
+    url: parent ? parent.getField("url") || "" : "",
+    abstract: parent
+      ? (parent.getField("abstractNote") || "").replace(/\n+/g, " ")
+      : "",
+  };
+  return renderTemplate(loadIndexTemplate(), params);
+}
+
+// 生成指向单个 note 文件的链接行（末尾带 marker 用于去重）
+function buildNoteLink(note, directory, noteFilePath) {
+  const relPath = noteFilePath.startsWith(directory + "/")
+    ? noteFilePath.slice(directory.length + 1)
+    : noteFilePath;
+  const fileName = relPath.split("/").pop();
+  const linkTarget = relPath.replace(/ /g, "%20");
+  return `- [${fileName}](${linkTarget}) <!-- zotero-note:${note.id} -->`;
+}
+
+// 更新主文件：<目录>/<标题>.md
+// 读取 -> 移除该 note 的旧链接行 -> 追加新链接行，保证同一 parent 只维护一个主文件
+async function updateIndexFile(note, note_type, directory, filePath) {
+  const parentTitle = note.parentItem
+    ? note.parentItem.getField("title")
+    : "untitled";
+  const safeTitle = parentTitle.replace(/[\0\/]/g, "");
+  const indexPath = `${directory}/${safeTitle}.md`;
+  const marker = `<!-- zotero-note:${note.id} -->`;
+
+  let existing = "";
+  try {
+    const data = await IOUtils.read(indexPath);
+    existing = new TextDecoder("utf-8").decode(data);
+  } catch (error) {
+    // 主文件尚不存在，稍后创建
+  }
+
+  // 移除该 note 已有的旧链接行，避免重复
+  const entryRegex = new RegExp(
+    "^[^\n]*" + escapeRegExp(marker) + "[^\n]*\n?",
+    "gm",
+  );
+  existing = existing.replace(entryRegex, "");
+
+  // 首次创建时补充 parent 元信息头部
+  if (existing.trim() === "") {
+    existing = buildIndexHeader(note);
+  }
+
+  const linkLine = buildNoteLink(note, directory, filePath);
+  const updated = existing.replace(/\n*$/, "\n\n") + linkLine + "\n";
+
+  const encoder = new TextEncoder();
+  await IOUtils.write(indexPath, encoder.encode(updated));
+  Zotero.debug(`主文件已更新: ${indexPath}`);
+}
+
 async function writeNoteContent(note, note_type, directory) {
   try {
     IOUtils.makeDirectory(directory);
@@ -120,6 +321,9 @@ async function writeNoteContent(note, note_type, directory) {
     const encoder = new TextEncoder();
     await IOUtils.write(filePath, encoder.encode(content));
     await IOUtils.remove(filePathTmp);
+
+    // 更新主文件：元信息 + 指向 note 的链接
+    await updateIndexFile(note, note_type, directory, filePath);
 
     Zotero.debug(`笔记已保存到: ${filePath}`);
     return filePath;
@@ -215,9 +419,9 @@ function checkDate() {
 
 async function process() {
   // 距离上次相差7天以上才会执行
-  if (!checkDate() && !ignore_last_save_time) {
-    return "距离上次保存不足7天，跳过";
-  }
+  // if (!checkDate() && !ignore_last_save_time) {
+  //   return "距离上次保存不足7天，跳过";
+  // }
 
   let [all_export_notes, new_export_notes] = await processNotes();
   // result.sort((a,b)=>b[1]-a[1]);
