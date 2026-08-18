@@ -392,7 +392,7 @@ async function processNotes() {
       }
     } catch (error) {
       Zotero.debug(`处理笔记时出错: ${error.stack}`);
-      error_num=error_num+1;
+      error_num = error_num + 1;
       status = status + `\n处理笔记时出错:  ${error.lineNumber} 行, ${error.message}`;
     }
   }
@@ -438,11 +438,53 @@ async function process() {
   if (status == "") {
     await IOUtils.write(last_save_time_path, encoder.encode(now.toISOString()));
   }
-  return `Status = ${status}, 一共 ${all_export_notes.length}个note,  本次更新${new_export_notes.length}个note`;
+  return `[${now.toISOString()}] Status = ${status}, 一共 ${all_export_notes.length}个note,  本次更新${new_export_notes.length}个note`;
 }
 
+/*
 if (typeof item == "undefined" || item == null) {
   return await process();
 } else {
   return;
 }
+*/
+
+// 1. 封装 sleep 函数
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+let log_path =
+  notewrite_dir + "/" + "zotero_sync.log";
+// 将 result 插入日志第一行（最新在上），并约束日志最多保留 MAX_LOG_LINES 行
+const MAX_LOG_LINES = 1000;
+async function appendLog(result) {
+  const encoder = new TextEncoder();
+  let logContent = "";
+  try {
+    const buf = await IOUtils.read(log_path);
+    logContent = new TextDecoder("utf-8").decode(buf);
+  } catch (error) {
+    // 日志文件不存在，视为空文件继续
+  }
+  const newLines = [result, ...logContent.split("\n")].filter(
+    (line) => line !== "",
+  );
+  const limited = newLines.slice(0, MAX_LOG_LINES);
+  await IOUtils.write(log_path, encoder.encode(limited.join("\n") + "\n"));
+}
+
+// 2. 主循环（无限运行）
+async function startLoop() {
+  while (true) {
+    const result = await process();      // 执行任务
+    // 将本次执行结果追加到日志文件
+    await appendLog(result);
+    // 
+    // 4. 无论刚才是否执行了 process，都等待 1 分钟（60000 毫秒）
+    await sleep(60000);
+  }
+}
+
+// 5. 启动循环
+startLoop();
