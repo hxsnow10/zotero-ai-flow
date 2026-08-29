@@ -1,0 +1,16 @@
+You are given a portion of a research paper "{title}" (a "chunk" of text). 
+Your task is to produce a succinct and accurate summary of this chunk. 
+Focus on the core ideas, methods, and any critical results or takeaways presented in this section.
+
+Chunk content:
+--- START OF CHUNK ---
+{text}
+--- END OF CHUNK ---
+
+Guidelines:
+- Be concise and neutral in tone.
+- Do not include information outside of what appears in the chunk.
+- If certain details (e.g., references or statistics) are not explicitly stated in the chunk, do not infer or fabricate them.
+- Use bullet points or short paragraphs as appropriate.
+- Output format uses standard Markdown, paying attention to indentation (4 spaces).
+- 组织结构跟原文章保持一致

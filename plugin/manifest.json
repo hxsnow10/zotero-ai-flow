@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "Zotero AI Flow",
+  "version": "0.1.0",
+  "description": "AI-powered workflow tools for Zotero: AI paper summary, Q&A, and structured note management.",
+  "homepage_url": "https://github.com/hxsnow10/zotero-ai-flow",
+  "author": "hxsnow10",
+  "applications": {
+    "zotero": {
+      "id": "zotero-ai-flow@hxsnow10.github.com",
+      "update_url": "",
+      "strict_min_version": "7.0",
+      "strict_max_version": "7.*"
+    }
+  }
+}
